@@ -1,0 +1,14 @@
+# 多设备（Windows + WSL2 Linux）统一换行符为 LF，避免仅换行符差异的脏状态
+* text=auto eol=lf
+
+# 二进制：不做换行符转换
+*.zip binary
+*.xlsx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ofd binary
+*.db binary
+*.sqlite3 binary
+*.pyc binary
