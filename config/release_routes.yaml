@@ -1,0 +1,190 @@
+# 首发渠道 Taxonomy v1.0
+# Release Route Taxonomy
+# 六类主渠道定义。系统只输出「建议」，不执行任何发布/检举动作。
+version: '1.0'
+
+routes:
+  R1:
+    id: R1
+    name: 社交平台首发型
+    alias: 个人/社交平台发声
+    description: >-
+      第一人称受害经历、性骚扰、职场霸凌、组织内部吃案、当事人希望亲自发声、
+      事实主要依赖个人经历与对话记录。平台泛指 Facebook/Threads/X/个人公开声明，
+      系统不指定具体账号。
+    typical_forms:
+      - 个人公开声明
+      - Facebook/Threads/X 发文
+    applicable_features:
+      - first_person_testimony
+      - victim_statement
+      - harassment
+      - bullying
+      - internal_complaint
+      - message_screenshots
+      - personal_experience
+    risks:
+      - SOURCE_EXPOSURE
+      - PRIVACY
+      - DEFAMATION
+      - EVIDENCE_AUTHENTICITY
+      - CONTEXT_LOSS
+      - RETALIATION
+    downgrade_conditions:
+      - source_requests_anonymity
+      - involves_minors
+      - high_privacy_sensitivity
+      - weak_evidence
+      - serious_safety_risk
+
+  R2:
+    id: R2
+    name: 媒体独家型
+    alias: 媒体独家/专题报道
+    description: >-
+      照片、视频、内部文件、企业内幕、私德争议、权势关系；需要记者先核验来源、
+      控制披露节奏，或无法立即公开全部原始材料。
+    typical_forms:
+      - 独家报道
+      - 专题报道
+      - 调查记者独家
+      - 数字媒体首发
+    applicable_features:
+      - private_material
+      - sourced_from_reporter
+      - pacing_control_needed
+    risks:
+      - EVIDENCE_AUTHENTICITY
+      - DEFAMATION
+      - PRIVACY
+      - CONTEXT_LOSS
+      - RETALIATION
+    downgrade_conditions: []
+
+  R3:
+    id: R3
+    name: 深度调查报道型
+    alias: 深度调查/数据调查
+    description: >-
+      土地、光电、标案、政治献金、补助、复杂政商关系、多公司多人物多笔资金；
+      需要数据交叉验证、建立时间线与关系图。
+    typical_forms:
+      - 深度调查稿
+      - 数据调查
+      - 专题报道
+      - 系列报道
+    preferred_categories:
+      - A03
+      - A04
+      - A05
+      - A06
+      - A07
+      - A08
+      - A09
+      - A16
+      - A18
+    applicable_features:
+      - complex_relationship_network
+      - multi_party_fund_flow
+      - needs_data_crosscheck
+    risks:
+      - EVIDENCE_AUTHENTICITY
+      - DEFAMATION
+      - DESTRUCTION_OF_EVIDENCE
+      - WITNESS_COLLUSION
+      - LEGAL_PROCESS_INTERFERENCE
+    downgrade_conditions: []
+
+  R4:
+    id: R4
+    name: 记者会/公开展示型
+    alias: 记者会/证据展示
+    description: >-
+      论文比对、明确文件、合同、时间线、数据表等可一眼看懂的对照证据；
+      有民代、政党、团体愿意公开承担指控责任。文件真实性未确认时不得优先推荐。
+    typical_forms:
+      - 记者会
+      - 公开说明会
+      - 证据展示
+      - 同步发布文件
+    applicable_features:
+      - side_by_side_comparable
+      - visually_presentable
+      - quickly_verifiable
+      - public_actor_backing
+    risks:
+      - EVIDENCE_AUTHENTICITY
+      - DEFAMATION
+      - LEGAL_PROCESS_INTERFERENCE
+      - DOCUMENT_FORGERY
+    downgrade_conditions:
+      - unverified_document_authenticity
+
+  R5:
+    id: R5
+    name: 正式检举优先型
+    alias: 正式检举/主管机关优先
+    description: >-
+      收贿、洗钱、金流、灭证/串证风险、组织犯罪、贿选、国安等涉及刑事犯罪
+      且需要调查权限的事项。可对应检察机关、调查机关、监察机关、学校学伦、
+      内部正式申诉、主管机关。系统只输出「建议先正式检举/提交主管机关」，
+      不自动发送任何材料。
+    typical_forms:
+      - 检察机关告发/陈情
+      - 调查机关检举
+      - 监察机关陈情
+      - 学校学伦检举
+      - 内部正式申诉
+      - 主管机关检举
+    applicable_features:
+      - bank_records
+      - fund_flow
+      - bribery
+      - money_laundering
+      - election_bribery
+      - organized_crime
+      - destruction_of_evidence_risk
+      - witness_intimidation
+      - national_security
+    risks:
+      - RETALIATION
+      - DESTRUCTION_OF_EVIDENCE
+      - WITNESS_COLLUSION
+    downgrade_conditions: []
+
+  R6:
+    id: R6
+    name: 高敏感核验型
+    alias: 先核真再决定
+    description: >-
+      国家机密、国安/军事/外交资料、内部机密文件、匿名泄露文件、疑似黑客取得
+      资料、无法确认真实性的内部材料。处理原则：先核真，后决定是否公开。
+      默认不推荐直接社交平台、直接全文公开、直接记者会展示原件。
+    typical_forms:
+      - 专业调查记者核验
+      - 编辑部安全审阅
+      - 法律审查
+      - 数字取证
+      - 必要时正式主管机关
+    applicable_features:
+      - classified_material
+      - national_security
+      - anonymous_document
+      - authenticity_unconfirmed
+      - possible_hacking_origin
+    risks:
+      - CLASSIFIED_INFORMATION
+      - SOURCE_EXPOSURE
+      - EVIDENCE_AUTHENTICITY
+      - LEGAL_PROCESS_INTERFERENCE
+      - DOCUMENT_FORGERY
+    downgrade_conditions: []
+
+# 供记者工作台展示的渠道编号->名称
+route_names:
+  R1: 社交平台首发型
+  R2: 媒体独家型
+  R3: 深度调查报道型
+  R4: 记者会/公开展示型
+  R5: 正式检举优先型
+  R6: 高敏感核验型

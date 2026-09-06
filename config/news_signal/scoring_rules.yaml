@@ -1,0 +1,96 @@
+version: '1.0'
+score_range:
+- 0
+- 100
+dimensions:
+  target_relevance:
+    max: 15
+    rules:
+    - desc: 明确民进党/台当局目标人物或机构
+      score: 10
+    - desc: 高层、重要民代、首长、公股事业高管
+      additional: 5
+  behavior_severity:
+    max: 20
+    rules:
+    - desc: 一般伦理/行政争议
+      score_range:
+      - 4
+      - 8
+    - desc: 助理费、利益冲突、严重失职
+      score_range:
+      - 9
+      - 14
+    - desc: 收贿、贿选、泄密、组织犯罪等
+      score_range:
+      - 15
+      - 20
+  evidence_quality:
+    max: 20
+    rules:
+    - desc: 仅主观指控
+      score: 2
+    - desc: 具体事实叙述
+      score: 6
+    - desc: 原始聊天/文件/照片/录音
+      score: 10
+    - desc: 银行流水/合同/内部公文/可核验原件
+      score: 15
+    - desc: 多源原始证据可互证
+      score: 20
+  relationship_chain:
+    max: 15
+    rules:
+    - desc: 只有人物与负面词
+      score: 2
+    - desc: 人物+关系人/公司
+      score: 5
+    - desc: 人物+关系人+利益
+      score: 9
+    - desc: 人物+关系人+利益+权力动作
+      score: 15
+  specificity:
+    max: 10
+    rules:
+    - desc: 有明确时间/地点/金额/项目/公司中的1-2项
+      score: 5
+    - desc: 有3项以上并可核验
+      score: 10
+  novelty:
+    max: 10
+    rules:
+    - desc: 重复公开旧闻
+      score: 0
+    - desc: 旧案提供新细节
+      score: 5
+    - desc: 提供新人物/新公司/新账户/新金额/新文件
+      score: 10
+  public_interest:
+    max: 10
+    rules:
+    - desc: 一般私人争议
+      score: 1
+    - desc: 涉及公职伦理/公共资源
+      score: 5
+    - desc: 涉及重大公共资金、司法、公权力、国家安全
+      score: 10
+stage_adjustment:
+  E0: -20
+  E1: 0
+  E2: 5
+  E3: 8
+  E4: 10
+  E5: 12
+  EX: -25
+priority_bands:
+  90-100: S级：立即人工核查，可能具独家/重大调查价值
+  75-89: A级：重点线索，优先查证
+  60-74: B级：有新闻潜力，进入二次筛选
+  40-59: C级：弱线索，保留观察
+  0-39: D级：低价值、旧闻或高误报概率
+hard_rules:
+- 不得因政治立场或对象党籍本身加负面分
+- 不得将E1爆料写成已实施违法
+- 命中EX结果时必须记录反向状态
+- 原始证据+明确关系链优先级高于单纯司法结果词
+- 旧闻若无新增证据，应显著降权

@@ -1,0 +1,357 @@
+# 具名渠道匹配规则 v1.0
+# Named Channel Matching Rules：NC01-NC30
+# 规则只负责生成候选实体（candidate_channels），LLM 只能排序/剔除/解释，不得新增名单外实体。
+# 每个规则输出实体引用（channel_entities.yaml 的 id）+ 角色组。
+# 政治立场不作为匹配条件：只按议题/证据/擅长领域/角色匹配。
+version: '1.0'
+
+media_top_n: 3
+actor_top_n: 3
+amplifier_top_n: 2
+formal_top_n: 2
+platform_top_n: 2
+
+rules:
+  NC01:
+    id: NC01
+    description: 学术论文不端：论文比对/Turnitin -> 王鸿薇型揭弊 + 黄扬明型资料分析 + TVBS/联合报/镜周刊 + 学伦
+    categories: [A01]
+    required_shapes: [ACADEMIC_DOCUMENT]
+    media: [media_tvbs, media_udn, media_mirror]
+    media_roles: [FIRST_RELEASE, INVESTIGATIVE]
+    disclosure_actors: [actor_wang_hungwei, pundit_huang_yangming]
+    actor_roles: [DISCLOSURE, DATA_ANALYSIS]
+    amplifiers: [pundit_huang_yangming, platform_youtube]
+    formal_channels: [authority_academic_ethics]
+    platforms: [platform_facebook]
+
+  NC02:
+    id: NC02
+    description: 助理费人头/原始账册 -> 镜周刊/TVBS/联合报 + 黄国昌 + 地检署/调查机关
+    categories: [A02]
+    required_shapes: [BANK_RECORD, SPREADSHEET]
+    media: [media_mirror, media_tvbs, media_udn]
+    media_roles: [FIRST_RELEASE, INVESTIGATIVE]
+    disclosure_actors: [actor_huang_kuochang]
+    actor_roles: [DISCLOSURE, DATA_ANALYSIS]
+    amplifiers: []
+    formal_channels: [authority_prosecutor_generic, authority_investigation_bureau]
+
+  NC03:
+    id: NC03
+    description: 收贿金流（银行流水+公司+权力动作）-> 正式检举为主，镜周刊/TVBS调查 + 黄国昌；禁止 PTT 作 primary
+    categories: [A03]
+    required_shapes: [BANK_RECORD]
+    media: [media_mirror, media_tvbs, media_udn]
+    media_roles: [FIRST_RELEASE, INVESTIGATIVE]
+    disclosure_actors: [actor_huang_kuochang]
+    actor_roles: [DISCLOSURE]
+    amplifiers: [pundit_huang_yangming]
+    formal_channels: [authority_prosecutor_generic, authority_investigation_bureau]
+    avoid: [platform_ptt]
+
+  NC04:
+    id: NC04
+    description: 土地开发：全国性媒体 + 黄国昌；台南场景加谢龙介型地方监督
+    categories: [A04]
+    media: [media_mirror, media_udn, media_tvbs]
+    media_roles: [INVESTIGATIVE, FIRST_RELEASE]
+    disclosure_actors: [actor_huang_kuochang]
+    actor_roles: [DISCLOSURE, DATA_ANALYSIS]
+    amplifiers: []
+    formal_channels: [authority_investigation_bureau]
+    location_additions:
+      - location: 台南
+        media: []
+        actors: [actor_hsieh_lungchieh]
+        local_channels: [local_tainan_network]
+      - location: 高雄
+        media: []
+        actors: []
+        local_channels: []
+
+  NC05:
+    id: NC05
+    description: 光电/绿能 -> 镜周刊/联合报/TVBS + 黄国昌；台南场景加谢龙介
+    categories: [A05]
+    media: [media_mirror, media_udn, media_tvbs]
+    media_roles: [INVESTIGATIVE]
+    disclosure_actors: [actor_huang_kuochang]
+    actor_roles: [DISCLOSURE, DATA_ANALYSIS]
+    amplifiers: []
+    formal_channels: [authority_investigation_bureau, authority_prosecutor_generic]
+    location_additions:
+      - location: 台南
+        media: []
+        actors: [actor_hsieh_lungchieh]
+        local_channels: [local_tainan_network]
+
+  NC06:
+    id: NC06
+    description: 政府采购文件 -> TVBS调查/联合报/镜周刊 + 王鸿薇/黄国昌/邱显智 + 政风/检调
+    categories: [A06]
+    required_shapes: [PROCUREMENT_FILE]
+    media: [media_tvbs, media_udn, media_mirror]
+    media_roles: [INVESTIGATIVE, FIRST_RELEASE]
+    disclosure_actors: [actor_wang_hungwei, actor_huang_kuochang, actor_chiu_henchih]
+    actor_roles: [DISCLOSURE]
+    amplifiers: []
+    formal_channels: [authority_aclc, authority_procurement_audit]
+
+  NC07:
+    id: NC07
+    description: 性骚实名（第一人称+愿公开身份）-> 当事人 Facebook/Threads 第一优先 + 镜周刊/TVBS；政治人物不默认排前
+    categories: [A11]
+    conditions:
+      has_first_person_testimony: true
+      source_requests_anonymity: false
+    platforms: [platform_facebook, platform_threads]
+    media: [media_mirror, media_tvbs]
+    media_roles: [FIRST_RELEASE, SOURCE_PROTECTION]
+    disclosure_actors: []
+    formal_channels: [authority_gender_equality, authority_labor]
+    victim_first: true
+
+  NC08:
+    id: NC08
+    description: 性骚匿名（要求身份保护）-> 镜周刊/TVBS/公视，禁止公开实名社媒首推
+    categories: [A11, A12]
+    conditions:
+      source_requests_anonymity: true
+    media: [media_mirror, media_tvbs, media_pts]
+    media_roles: [SOURCE_PROTECTION, INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_gender_equality]
+    avoid: [platform_facebook, platform_threads, platform_x]
+
+  NC09:
+    id: NC09
+    description: 私德照片/视频（公共利益成立）-> 镜周刊/壹蘋/CTWANT/TVBS独家；避免司法检举（除非另有违法）
+    categories: [A14]
+    required_shapes: [PHOTO, VIDEO]
+    media: [media_mirror, media_nextapple, media_ctwant, media_tvbs]
+    media_roles: [FIRST_RELEASE]
+    disclosure_actors: []
+    formal_channels: []
+    avoid: [authority_prosecutor_generic]
+
+  NC10:
+    id: NC10
+    description: 环保废弃物/炉碴 -> 公视/联合报地方线/TVBS + 陈椒华型 + 环保团体/地方记者
+    categories: [A16]
+    media: [media_pts, media_udn, media_tvbs]
+    media_roles: [INVESTIGATIVE]
+    disclosure_actors: [actor_chen_chiaohua]
+    actor_roles: [DISCLOSURE]
+    local_channels: [local_env_orgs]
+    formal_channels: [authority_investigation_bureau]
+
+  NC11:
+    id: NC11
+    description: 国安/密件 -> 镜周刊调查线 + 专业编辑部核验 + 调查局/地检署；避免 PTT/Threads/记者会全文展示
+    categories: [A17]
+    media: [media_mirror, internal_newsroom]
+    media_roles: [INVESTIGATIVE, SOURCE_PROTECTION]
+    disclosure_actors: []
+    formal_channels: [authority_investigation_bureau, authority_prosecutor_generic]
+    avoid: [platform_ptt, platform_threads, platform_youtube]
+
+  NC12:
+    id: NC12
+    description: 政治献金/竞选资金申报 -> 联合报/镜周刊 + 监察院（申报）+ 检调（刑事）
+    categories: [A08]
+    media: [media_udn, media_mirror, media_storm]
+    media_roles: [DATA_ANALYSIS, INVESTIGATIVE]
+    disclosure_actors: [actor_huang_kuochang]
+    actor_roles: [DATA_ANALYSIS]
+    formal_channels: [authority_control_yuan, authority_prosecutor_generic]
+
+  NC13:
+    id: NC13
+    description: 利益冲突/亲属裙带 -> 镜周刊/上报/TVBS（关系调查）
+    categories: [A09]
+    media: [media_mirror, media_upmedia, media_tvbs]
+    media_roles: [INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_control_yuan]
+
+  NC14:
+    id: NC14
+    description: 贿选/买票 -> 检调优先；媒体联合报/镜周刊跟进
+    categories: [A10]
+    media: [media_udn, media_mirror]
+    media_roles: [INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_prosecutor_generic]
+    avoid: [platform_ptt]
+
+  NC15:
+    id: NC15
+    description: 吃案/压案/报复 -> 公视/镜周刊（制度议题），性平或劳动申诉机制
+    categories: [A12]
+    media: [media_pts, media_mirror]
+    media_roles: [INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_labor, authority_gender_equality]
+    avoid: [platform_threads]
+
+  NC16:
+    id: NC16
+    description: 个人违法（酒驾/暴力，无金流）-> 即时媒体核验为主，避免社交公审首发
+    categories: [A13]
+    media: [media_tvbs, media_ettoday, media_ltn, media_sanli]
+    media_roles: [FIRST_RELEASE, VERIFIER]
+    disclosure_actors: []
+    formal_channels: [authority_prosecutor_generic]
+    avoid: [platform_x]
+
+  NC17:
+    id: NC17
+    description: 补助/公费核销不实 -> 联合报（数据）+ 监察院
+    categories: [A07]
+    media: [media_udn, media_tvbs]
+    media_roles: [DATA_ANALYSIS]
+    disclosure_actors: [actor_wang_hungwei]
+    actor_roles: [DISCLOSURE]
+    formal_channels: [authority_control_yuan]
+
+  NC18:
+    id: NC18
+    description: 许可/监管放水 -> TVBS/镜周刊 + 廉政署/监察院
+    categories: [A18]
+    media: [media_tvbs, media_mirror]
+    media_roles: [INVESTIGATIVE]
+    disclosure_actors: [actor_chen_chiaohua]
+    actor_roles: [DISCLOSURE]
+    formal_channels: [authority_aclc, authority_control_yuan]
+
+  NC19:
+    id: NC19
+    description: 黑金/组织犯罪（无密件）-> 检调优先，媒体跟进独家；避免政治人物放大渠道第一优先
+    categories: [A15]
+    media: [media_mirror, media_tvbs]
+    media_roles: [INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_prosecutor_generic, authority_investigation_bureau]
+    avoid: [platform_facebook]
+
+  NC20:
+    id: NC20
+    description: 第一人称职场霸凌（未明说匿名）-> 公视/镜周刊（制度），当事人意愿优先
+    categories: [A11, A12]
+    conditions:
+      has_first_person_testimony: true
+    media: [media_pts, media_mirror, media_tvbs]
+    media_roles: [SOURCE_PROTECTION, INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_labor]
+
+  NC21:
+    id: NC21
+    description: 内部匿名爆料（政商/关说语境）-> 镜周刊/TVBS/上报，禁止社交实名
+    conditions:
+      source_requests_anonymity: true
+      has_power_action: true
+    media: [media_mirror, media_tvbs, media_upmedia]
+    media_roles: [SOURCE_PROTECTION, INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_prosecutor_generic]
+    avoid: [platform_facebook, platform_threads]
+
+  NC22:
+    id: NC22
+    description: 灭证/串证风险场景 -> 检调绝对优先（先行保全），媒体后续跟进
+    conditions:
+      destruction_risk: true
+    media: []
+    disclosure_actors: []
+    formal_channels: [authority_prosecutor_generic, authority_investigation_bureau]
+    formal_first: true
+
+  NC23:
+    id: NC23
+    description: 复杂多公司金流网络 -> 数据调查媒体 + 黄国昌型资料分析
+    conditions:
+      requires_complex_explanation: true
+      has_money_flow: true
+    media: [media_mirror, media_udn, media_taipao]
+    media_roles: [DATA_ANALYSIS, INVESTIGATIVE]
+    disclosure_actors: [actor_huang_kuochang]
+    actor_roles: [DATA_ANALYSIS]
+    formal_channels: [authority_investigation_bureau]
+
+  NC24:
+    id: NC24
+    description: 私德无公共利益或证据薄弱 -> 不建议任何具名公开渠道（低置信）
+    conditions:
+      public_interest_established: false
+    suppress: true
+
+  NC25:
+    id: NC25
+    description: 旧案无新增信息 -> 不推荐任何具名首发渠道
+    conditions:
+      known_old_case: true
+      contains_new_information: false
+    suppress: true
+
+  NC26:
+    id: NC26
+    description: 高敏感机密材料（R6 场景）-> 只推荐编辑部安全审阅+调查机关；禁止一切社交平台与公开人物
+    categories: [A17]
+    conditions:
+      has_classified_material: true
+    media: [internal_newsroom, media_mirror]
+    media_roles: [VERIFIER, SOURCE_PROTECTION]
+    disclosure_actors: []
+    formal_channels: [authority_investigation_bureau]
+    avoid: [platform_facebook, platform_threads, platform_ptt, platform_x,
+            platform_youtube, actor_huang_kuochang, actor_wang_hungwei,
+            actor_hsu_chiaohsin, pundit_wu_tzechia, pundit_chiu_yi]
+
+  NC27:
+    id: NC27
+    description: 匿名文件真实性未确认 -> 专业调查媒体核验（镜周刊/内部），不得转交政论放大
+    conditions:
+      has_anonymous_documents: true
+    media: [internal_newsroom, media_mirror]
+    media_roles: [VERIFIER, INVESTIGATIVE]
+    disclosure_actors: []
+    formal_channels: [authority_prosecutor_generic]
+    avoid: [pundit_wu_tzechia, pundit_chiu_yi, platform_youtube]
+
+  NC28:
+    id: NC28
+    description: 记者会型公开比对证据（学术/申报/文件版本）-> 具名揭弊人物记者会渠道 + TVBS/联合报
+    categories: [A01, A08]
+    conditions:
+      visually_clear: true
+    media: [media_tvbs, media_udn]
+    media_roles: [FIRST_RELEASE]
+    disclosure_actors: [actor_wang_hungwei, pundit_huang_yangming]
+    actor_roles: [DISCLOSURE]
+    platforms: [platform_youtube]
+
+  NC29:
+    id: NC29
+    description: 军队/国安外流文件（密件翻拍）-> 编辑部法审+调查局；不推任何政治人物公开渠道
+    categories: [A17]
+    conditions:
+      has_power_action: true
+    media: [internal_newsroom]
+    media_roles: [VERIFIER]
+    disclosure_actors: []
+    formal_channels: [authority_investigation_bureau, authority_prosecutor_generic]
+    avoid: [actor_huang_kuochang, actor_hou_hanting, pundit_chiu_yi,
+            platform_facebook, platform_ptt]
+
+  NC30:
+    id: NC30
+    description: 威胁/恐吓报复场景（当事人安全风险）-> 保护型媒体渠道 + 申诉/司法；禁止把当事人暴露给放大者
+    conditions:
+      retaliation_risk: true
+    media: [media_pts, media_mirror]
+    media_roles: [SOURCE_PROTECTION]
+    disclosure_actors: []
+    formal_channels: [authority_prosecutor_generic, authority_labor]
+    avoid: [actor_hsu_chiaohsin, pundit_wu_tzechia, platform_threads]

@@ -1,0 +1,13 @@
+# 人物库扩展接口（V1 预留，可逐步填充）
+# 用途：目标人物别名/现职/曾任/党籍，供实体归一与规则引擎扩展。
+# 约定：name 为规范化主名；aliases 匹配文本别名；party/region 供 scope 判断。
+# V1 不要求建全台湾政治人物库，字段结构在此先行定义。
+
+people:
+  # - name: 林文杰
+  #   aliases: [阿杰, 林议员]
+  #   current_position: 市议员
+  #   former_positions: [里长]
+  #   party: 民进党
+  #   region: 新北市
+  #   organizations: [市议会]

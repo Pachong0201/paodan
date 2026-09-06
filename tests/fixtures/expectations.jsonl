@@ -1,0 +1,60 @@
+{"id": "hv01_headcount", "expect_sa": true, "expect_cats": ["A02"], "patterns": ["P01", "P02", "P03"], "min_score": 75}
+{"id": "hv02_bribe_building", "expect_sa": true, "expect_cats": ["A03", "A04"], "patterns": ["P05", "P19"], "min_score": 75}
+{"id": "hv03_land_rezoning", "expect_sa": true, "expect_cats": ["A03", "A04"], "patterns": ["P11"], "min_score": 75}
+{"id": "hv04_solar", "expect_sa": true, "expect_cats": ["A03", "A05"], "patterns": ["P10"], "min_score": 75}
+{"id": "hv05_procurement_leak", "expect_sa": true, "expect_cats": ["A06"], "patterns": ["P07", "P08", "P09"], "min_score": 75}
+{"id": "hv06_subsidy", "expect_sa": true, "expect_cats": ["A07", "A09"], "patterns": [], "min_score": 70}
+{"id": "hv07_donation_quidproquo", "expect_sa": true, "expect_cats": ["A08", "A06"], "patterns": ["P12"], "min_score": 75}
+{"id": "hv08_kin_contract", "expect_sa": true, "expect_cats": ["A09"], "patterns": ["P06"], "min_score": 75}
+{"id": "hv09_vote_buying", "expect_sa": true, "expect_cats": ["A10"], "patterns": ["P13", "P14"], "min_score": 75}
+{"id": "hv10_sexual_harassment", "expect_sa": true, "expect_cats": ["A11", "A12"], "patterns": ["P15", "P16"], "min_score": 70}
+{"id": "hv11_doc_leak", "expect_sa": true, "expect_cats": ["A17"], "patterns": ["P17"], "min_score": 75}
+{"id": "hv12_flyash", "expect_sa": true, "expect_cats": ["A16", "A03"], "patterns": ["P18"], "min_score": 75}
+{"id": "hv13_drink_drive", "expect_sa": true, "expect_cats": ["A13", "A12"], "patterns": [], "min_score": 70}
+{"id": "hv14_gang", "expect_sa": true, "expect_cats": ["A15", "A06"], "patterns": [], "min_score": 70}
+{"id": "hv15_salary_fund", "expect_sa": true, "expect_cats": ["A02"], "patterns": ["P02", "P03"], "min_score": 70}
+{"id": "hv16_media_sex", "expect_sa": true, "expect_cats": ["A14"], "patterns": [], "min_score": 60}
+{"id": "hv17_admin_permit", "expect_sa": true, "expect_cats": ["A18", "A03"], "patterns": [], "min_score": 70}
+{"id": "hv18_suppress_whistle", "expect_sa": true, "expect_cats": ["A12"], "patterns": ["P16"], "min_score": 65}
+{"id": "hv19_thesis", "expect_sa": true, "expect_cats": ["A01"], "patterns": [], "min_score": 60}
+{"id": "hv20_cash_at_home", "expect_sa": true, "expect_cats": ["A08", "A03"], "patterns": [], "min_score": 70}
+{"id": "im01_coordinate_build", "expect_sa": true, "expect_cats": ["A03", "A04"], "patterns": ["P04"], "min_score": 70}
+{"id": "im02_deposit_card", "expect_sa": true, "expect_cats": ["A02"], "patterns": ["P01", "P02"], "min_score": 75}
+{"id": "im03_spec_align", "expect_sa": true, "expect_cats": ["A06"], "patterns": ["P07", "P08"], "min_score": 70}
+{"id": "im04_solar_fee", "expect_sa": true, "expect_cats": ["A05", "A03"], "patterns": ["P10"], "min_score": 70}
+{"id": "im05_rezoning_fee", "expect_sa": true, "expect_cats": ["A04", "A09"], "patterns": ["P11"], "min_score": 75}
+{"id": "im06_vote_list", "expect_sa": true, "expect_cats": ["A10"], "patterns": ["P13", "P14"], "min_score": 70}
+{"id": "im07_harass_pressure", "expect_sa": true, "expect_cats": ["A11", "A12"], "patterns": ["P15", "P16"], "min_score": 70}
+{"id": "im08_doc_copy", "expect_sa": true, "expect_cats": ["A17"], "patterns": ["P17"], "min_score": 70}
+{"id": "im09_flyash_fee", "expect_sa": true, "expect_cats": ["A16", "A12"], "patterns": ["P18"], "min_score": 70}
+{"id": "im10_relatives_salary", "expect_sa": true, "expect_cats": ["A02"], "patterns": ["P01", "P02"], "min_score": 70}
+{"id": "neg01_normal_procure", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg02_public_meeting", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg03_legal_donation", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg04_normal_kin", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg05_photo_together", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg06_normal_paper", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg07_policy_criticism", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg08_political_insult", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 40}
+{"id": "neg09_normal_solar", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg10_normal_permit", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg11_routine_qa", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg12_spouse_job", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg13_normal_contract", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg14_gossip_no_public", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 40}
+{"id": "neg15_town_news", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg16_normal_staff", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg17_university_ok", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 40}
+{"id": "neg18_photo_meal", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg19_normal_river", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60}
+{"id": "neg20_old_outcome_dup", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 35}
+{"id": "edge01_contact_only", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 40, "note": "Case1 低分"}
+{"id": "edge02_builder_fee", "expect_sa": true, "expect_cats": ["A03", "A04"], "patterns": ["P05", "P19"], "min_score": 75, "note": "Case2 期望A/S"}
+{"id": "edge03_sister_public_assistant", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 45, "note": "Case3 不得高分"}
+{"id": "edge04_sister_no_work", "expect_sa": true, "expect_cats": ["A02"], "patterns": ["P01", "P02", "P03"], "min_score": 75, "note": "Case4 高優先"}
+{"id": "edge05_legal_procure", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 60, "note": "Case5 低分"}
+{"id": "edge06_prebid_spec", "expect_sa": true, "expect_cats": ["A06"], "patterns": ["P07", "P08"], "min_score": 75, "note": "Case6 高分"}
+{"id": "edge07_vague_accuse", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 45, "note": "Case7 低至中分"}
+{"id": "edge08_no_prosecute_old", "expect_sa": false, "expect_cats": [], "patterns": [], "min_score": 35, "note": "Case8 EX+P20"}
+{"id": "edge09_new_evidence_after_ex", "expect_sa": true, "expect_cats": ["A03"], "patterns": ["P19"], "min_score": 65, "note": "Case9 EX但新證據不得過濾"}
+{"id": "edge10_boss_request", "expect_sa": true, "expect_cats": ["A03", "A06"], "patterns": [], "min_score": 70, "note": "Case10 核心能力：無直接負面詞"}

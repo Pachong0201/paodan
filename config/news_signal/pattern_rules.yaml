@@ -1,0 +1,324 @@
+version: '1.0'
+matching_policy:
+  default: 组合规则优先于单关键词；H词可进入候选池，但高优先级通常需要2类以上信号共现
+  window: 建议在同一邮件、同一段落或相邻3句内判断共现
+  entity_linking: 若存在人名、机构、公司、项目、金额，应优先建立关系链
+patterns:
+- id: P01
+  category: A02
+  name: 亲友人头助理
+  required_groups:
+  - - target_person
+  - - 親友
+    - 配偶
+    - 妻子
+    - 丈夫
+    - 兒子
+    - 女兒
+    - 父親
+    - 母親
+    - 胞兄
+    - 胞姐
+    - 妻舅
+  - - 公費助理
+    - 助理
+  - - 未實際任職
+    - 未實際上班
+    - 人頭助理
+    - 親友掛名
+  base_score: 78
+- id: P02
+  category: A02
+  name: 助理薪资回流
+  required_groups:
+  - - 助理
+    - 公費助理
+  - - 存摺
+    - 提款卡
+    - 銀行帳戶
+  - - 入帳後領出
+    - 全數領出
+    - 交回
+    - 繳回辦公室
+    - 薪資回流
+  base_score: 82
+- id: P03
+  category: A02
+  name: 申报薪资与实际薪资不一致
+  required_groups:
+  - - 薪資
+    - 加班費
+  - - 低薪高報
+    - 浮報薪資
+    - 虛報薪資
+    - 不實申報
+  base_score: 78
+- id: P04
+  category: A03
+  name: 厂商金钱职务对价
+  required_groups:
+  - - target_person
+  - - 廠商
+    - 業者
+    - 建商
+    - 地主
+  - - 現金
+    - 匯款
+    - 顧問費
+    - 服務費
+    - 回扣
+    - 佣金
+    - 分潤
+  - - 關說
+    - 施壓
+    - 協調
+    - 護航
+    - 要求核准
+    - 協助發照
+  base_score: 90
+- id: P05
+  category: A03
+  name: 建商顾问费与建照土地
+  required_groups:
+  - - target_person
+  - - 建商
+  - - 顧問費
+    - 服務費
+  - - 建照
+    - 土地開發
+    - 土地變更
+    - 容積
+  base_score: 88
+- id: P06
+  category: A09
+  name: 亲属利益本人签核
+  required_groups:
+  - - target_person
+  - - 親屬
+    - 兒子
+    - 女兒
+    - 配偶
+    - 丈夫
+    - 妻子
+    - 父親
+    - 母親
+    - 兄弟
+    - 姊妹
+  - - 簽核
+    - 核准
+    - 批准
+    - 評選
+    - 補助
+    - 撥款
+    - 錄取
+    - 發包
+  base_score: 84
+- id: P07
+  category: A06
+  name: 招标前接触特定厂商
+  required_groups:
+  - - 特定廠商
+    - 屬意廠商
+    - 廠商
+  - - 公告前接觸
+    - 招標前接觸
+    - 提前開會
+    - 事先討論標案
+  base_score: 86
+- id: P08
+  category: A06
+  name: 厂商资料反向生成采购文件
+  required_groups:
+  - - 廠商提供資料
+    - 廠商簡報
+    - 報價單
+  - - 照廠商資料製作
+    - 採購文件
+    - 需求書
+    - 規格書
+  base_score: 90
+- id: P09
+  category: A06
+  name: 排他性规格
+  required_groups:
+  - - 規格
+    - 需求書
+    - 規格書
+  - - 只有一家符合
+    - 指定廠商
+    - 量身訂做
+    - 量身打造
+  base_score: 84
+- id: P10
+  category: A05
+  name: 光电政治关系土地分润
+  required_groups:
+  - - 光電
+    - 太陽光電
+    - 綠能
+    - 案場
+  - - target_person
+    - 地方人士
+  - - 土地
+    - 地主
+    - 土地租賃
+  - - 分潤
+    - 顧問費
+    - 介紹費
+    - 土地仲介費
+    - 股份
+  base_score: 86
+- id: P11
+  category: A04
+  name: 土地变更金流
+  required_groups:
+  - - 土地變更
+    - 重劃
+    - 都市計畫變更
+  - - target_person
+  - - 現金
+    - 匯款
+    - 顧問費
+    - 佣金
+    - 分潤
+    - 股份
+  base_score: 88
+- id: P12
+  category: A08
+  name: 厂商政治献金与行政利益
+  required_groups:
+  - - 廠商
+    - 建商
+    - 公司
+  - - 政治獻金
+    - 捐款
+  - - 標案
+    - 補助
+    - 許可
+    - 建照
+    - 土地變更
+  base_score: 86
+- id: P13
+  category: A10
+  name: 桩脚名单现金
+  required_groups:
+  - - 樁腳
+    - 助理
+    - 競選團隊
+  - - 選民名單
+    - 名冊
+  - - 現金
+    - 紅包
+  base_score: 90
+- id: P14
+  category: A10
+  name: 每票明确金额
+  required_groups:
+  - - 每票
+    - 一票
+  - - amount_or_number
+  base_score: 88
+- id: P15
+  category: A11|A12
+  name: 性骚申诉后主管未处理
+  required_groups:
+  - - 性騷
+    - 性騷擾
+    - 權勢性騷
+  - - 申訴
+    - 反映
+    - 求助
+  - - 主管
+    - 主任
+  - - 未處理
+    - 未通報
+    - 吃案
+    - 壓案
+    - 未啟動程序
+  base_score: 84
+- id: P16
+  category: A12
+  name: 爆料后封口报复
+  required_groups:
+  - - 爆料
+    - 申訴
+    - 檢舉
+    - 告發
+  - - 刪除訊息
+    - 要求撤案
+    - 封口
+    - 不要對外說
+    - 調職
+    - 解僱
+    - 逼退
+    - 報復
+  base_score: 82
+- id: P17
+  category: A17
+  name: 机密资料异常复制外传
+  required_groups:
+  - - 密件
+    - 機密
+    - 機敏資料
+    - 內部文件
+  - - 翻拍
+    - 下載
+    - 複製
+    - 截圖
+    - 攜出
+  - - 傳送
+    - 交付
+    - 提供
+    - 上傳
+    - 外洩
+  base_score: 92
+- id: P18
+  category: A16
+  name: 废弃物与地方政治利益
+  required_groups:
+  - - 爐碴
+    - 廢棄物
+    - 土方
+    - 砂石
+  - - target_person
+    - 地方人士
+  - - 清運業者
+    - 承包商
+    - 地主
+    - 處理費
+    - 清運費
+  base_score: 80
+- id: P19
+  category: GLOBAL
+  name: 原始证据+具体金额
+  required_groups:
+  - - LINE
+    - 錄音
+    - 匯款單
+    - 銀行流水
+    - 帳冊
+    - 內部公文
+    - 合約
+    - 標書
+  - - target_person
+  - - amount_or_number
+  base_score: 82
+- id: P20
+  category: GLOBAL
+  name: 旧案反向结果且无新增证据
+  required_groups:
+  - - X_result
+  - - no_new_evidence
+  base_score: 20
+  cap_score: 35
+cross_signal_bonuses:
+- condition: 命中原始证据词>=2且存在具体人名/公司名/金额
+  bonus: 10
+- condition: 形成 人物->关系人->利益->权力动作 四段链条
+  bonus: 12
+- condition: 邮件包含此前未公开的新人物/新公司/新账户/新金额/新时间点
+  bonus: 12
+- condition: 命中正式调查或更高阶段S2-S6
+  bonus: 8
+- condition: 命中E4/E5终局性正式认定
+  bonus: 10

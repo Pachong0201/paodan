@@ -1,0 +1,13 @@
+# 重要爆料邮件 Excel 台账配置 V3.1
+# Important Email Register
+version: '3.1'
+
+excel_register:
+  enabled: true
+  path: data/reports/important_email_register.xlsx
+  min_score: 60
+  priorities:
+    - S
+    - A
+    - B
+  backup_before_batch: true

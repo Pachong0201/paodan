@@ -1,0 +1,16 @@
+# 重要邮件待审查文件夹配置 V3.2
+# Review Queue: 将命中的重要邮件复制到独立待审查文件夹
+version: '3.2'
+
+review_queue:
+  enabled: true
+  path: data/review_queue
+  priorities: [S, A, B]
+  min_score: 60
+  split_by_priority: true
+  copy_original_eml: true
+  move_original: false
+  deduplicate: true
+  sync_priority_changes: true
+  write_sidecar_json: true
+  extract_attachments: false

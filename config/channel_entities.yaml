@@ -1,0 +1,1268 @@
+# 具名渠道实体数据库 v1.0
+# Named Channel Entities：全部媒体/人物/意见领袖/平台/正式机关/地方渠道均在此配置。
+# 代码不硬编码实体名。状态：active / inactive / historical / unknown
+# inactive/historical 实体默认不进入 Top 推荐。
+# 评分维度 0-100；last_verified_date 超过 180 天启动时输出 stale 警告。
+version: '1.0'
+stale_days: 180
+
+# ============================================================
+# 一、媒体库（route_types / strong_categories / strong_evidence_shapes 画像差异化）
+# ============================================================
+entities:
+  media_mirror:
+    id: media_mirror
+    name: 镜周刊
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3]
+    roles: [FIRST_RELEASE, INVESTIGATIVE, SOURCE_PROTECTION]
+    strong_categories: [A03, A04, A05, A11, A12, A14, A15, A17]
+    strong_evidence_shapes: [PHOTO, VIDEO, CHAT_RECORD, INTERNAL_DOCUMENT, BANK_RECORD, MULTI_SOURCE_PACKAGE]
+    strengths: [司法卷证, 政商关系, 权势性骚调查, 私德照片, 国安共谍, 内部文件]
+    source_protection: high
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    historical_examples: [高虹安助理费案, 林秉枢案独家, 私德照片独家]
+    risk_notes: [私德题材需确认公共利益]
+    scores: {reach: 88, verification: 92, source_protection: 95, speed: 60, complexity: 92, controversy_risk: 45}
+    confidence: 0.9
+
+  media_tvbs:
+    id: media_tvbs
+    name: TVBS
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3, R4]
+    roles: [FIRST_RELEASE, INVESTIGATIVE, VERIFIER]
+    strong_categories: [A03, A06, A09, A18, A02]
+    strong_evidence_shapes: [INTERNAL_DOCUMENT, VIDEO, CHAT_RECORD, OFFICIAL_DOCUMENT, MULTI_SOURCE_PACKAGE]
+    strengths: [吹哨者, 内部文件, 行政争议, 特权, 公司房产, 现场影像, 快速跟进]
+    source_protection: high
+    verification_capacity: high
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    historical_examples: [吹哨者内部文件系列]
+    risk_notes: [快速跟进需注意完整核验]
+    scores: {reach: 92, verification: 82, source_protection: 80, speed: 90, complexity: 70, controversy_risk: 40}
+    confidence: 0.85
+
+  media_udn:
+    id: media_udn
+    name: 联合报
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R3, R4]
+    roles: [INVESTIGATIVE, FIRST_RELEASE, DATA_ANALYSIS]
+    strong_categories: [A04, A05, A06, A08, A10, A16]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, PROCUREMENT_FILE, SPREADSHEET, DATABASE_RECORD, MULTI_SOURCE_PACKAGE]
+    strengths: [地方政治, 司法, 土地, 选举, 数据, 政策, 长线调查]
+    source_protection: high
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    historical_examples: [县市土地开发调查系列]
+    risk_notes: []
+    scores: {reach: 85, verification: 88, source_protection: 85, speed: 55, complexity: 88, controversy_risk: 30}
+    confidence: 0.85
+
+  media_ltn:
+    id: media_ltn
+    name: 自由时报
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3]
+    roles: [FIRST_RELEASE, INVESTIGATIVE]
+    strong_categories: [A03, A06, A07, A17, A18]
+    strong_evidence_shapes: [INTERNAL_DOCUMENT, OFFICIAL_DOCUMENT, CHAT_RECORD]
+    strengths: [即时政治, 爆料处理, 网路即时]
+    source_protection: medium
+    verification_capacity: medium
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [即时快节奏，复杂资料需自评加工深度]
+    scores: {reach: 88, verification: 72, source_protection: 70, speed: 88, complexity: 62, controversy_risk: 35}
+    confidence: 0.75
+
+  media_ct:
+    id: media_ct
+    name: 中国时报
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3]
+    roles: [FIRST_RELEASE, INVESTIGATIVE]
+    strong_categories: [A03, A04, A05, A06]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, PROCUREMENT_FILE, CHAT_RECORD]
+    strengths: [政商调查, 传统即时]
+    source_protection: medium
+    verification_capacity: medium
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: []
+    scores: {reach: 80, verification: 70, source_protection: 62, speed: 85, complexity: 60, controversy_risk: 40}
+    confidence: 0.7
+
+  media_ettoday:
+    id: media_ettoday
+    name: ETtoday新闻云
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2]
+    roles: [AMPLIFIER, FIRST_RELEASE]
+    strong_categories: [A11, A13, A14, A10]
+    strong_evidence_shapes: [CHAT_RECORD, PHOTO, VIDEO]
+    strengths: [网路即时, 高流量放大]
+    source_protection: low
+    verification_capacity: medium
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [高速传播，适合放大而非复杂调查首发]
+    scores: {reach: 90, verification: 58, source_protection: 45, speed: 95, complexity: 40, controversy_risk: 50}
+    confidence: 0.7
+
+  media_sanli:
+    id: media_sanli
+    name: 三立新闻
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3]
+    roles: [AMPLIFIER, INVESTIGATIVE]
+    strong_categories: [A06, A08, A13, A11]
+    strong_evidence_shapes: [VIDEO, CHAT_RECORD, PHOTO]
+    strengths: [独家即时, 政论放大]
+    source_protection: medium
+    verification_capacity: medium
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: []
+    scores: {reach: 88, verification: 66, source_protection: 60, speed: 90, complexity: 58, controversy_risk: 45}
+    confidence: 0.7
+
+  media_ftv:
+    id: media_ftv
+    name: 民视新闻
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R4]
+    roles: [AMPLIFIER, FIRST_RELEASE]
+    strong_categories: [A06, A07, A13]
+    strong_evidence_shapes: [VIDEO, OFFICIAL_DOCUMENT]
+    strengths: [即时新闻, 影像]
+    source_protection: medium
+    verification_capacity: medium
+    speed: high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: []
+    scores: {reach: 82, verification: 64, source_protection: 58, speed: 88, complexity: 45, controversy_risk: 40}
+    confidence: 0.65
+
+  media_pts:
+    id: media_pts
+    name: 公视
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R3]
+    roles: [INVESTIGATIVE, DATA_ANALYSIS, VERIFIER]
+    strong_categories: [A11, A12, A16, A07, A18]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, DATABASE_RECORD, SPREADSHEET, AUDIO]
+    strengths: [职场霸凌, 劳动, 制度性问题, 公共政策, 社会议题]
+    source_protection: high
+    verification_capacity: very_high
+    speed: medium
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    historical_examples: [职场霸凌与劳动制度调查]
+    risk_notes: [非私德照片首发渠道]
+    scores: {reach: 65, verification: 95, source_protection: 90, speed: 45, complexity: 88, controversy_risk: 20}
+    confidence: 0.85
+
+  media_storm:
+    id: media_storm
+    name: 风传媒
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3]
+    roles: [FIRST_RELEASE, INVESTIGATIVE, AMPLIFIER]
+    strong_categories: [A01, A08, A09, A03]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, ACADEMIC_DOCUMENT, SPREADSHEET]
+    strengths: [政经调查, 网络原生]
+    source_protection: high
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    historical_examples: []
+    risk_notes: []
+    scores: {reach: 62, verification: 80, source_protection: 85, speed: 65, complexity: 80, controversy_risk: 30}
+    confidence: 0.8
+
+  media_newtalk:
+    id: media_newtalk
+    name: Newtalk新闻
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R4]
+    roles: [AMPLIFIER, FIRST_RELEASE]
+    strong_categories: [A13, A14, A08]
+    strong_evidence_shapes: [PHOTO, VIDEO, CHAT_RECORD]
+    strengths: [网路即时]
+    source_protection: low
+    verification_capacity: low
+    speed: high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [不适合复杂金流首发]
+    scores: {reach: 55, verification: 50, source_protection: 40, speed: 85, complexity: 35, controversy_risk: 50}
+    confidence: 0.6
+
+  media_nextapple:
+    id: media_nextapple
+    name: 壹蘋新闻
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2]
+    roles: [FIRST_RELEASE]
+    strong_categories: [A14, A11, A13, A15]
+    strong_evidence_shapes: [PHOTO, VIDEO, CHAT_RECORD]
+    strengths: [照片, 视频, 私德, 即时独家]
+    source_protection: medium
+    verification_capacity: medium
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: [私德照片与即时独家]
+    risk_notes: [复杂金流与司法资料不应默认排第一]
+    scores: {reach: 70, verification: 60, source_protection: 55, speed: 93, complexity: 42, controversy_risk: 60}
+    confidence: 0.7
+
+  media_ctwant:
+    id: media_ctwant
+    name: CTWANT
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2]
+    roles: [FIRST_RELEASE, AMPLIFIER]
+    strong_categories: [A14, A13, A11, A06]
+    strong_evidence_shapes: [PHOTO, VIDEO, CHAT_RECORD]
+    strengths: [照片, 视频, 即时独家]
+    source_protection: medium
+    verification_capacity: medium
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [复杂金流与司法资料不应默认排第一]
+    scores: {reach: 72, verification: 58, source_protection: 52, speed: 92, complexity: 40, controversy_risk: 55}
+    confidence: 0.7
+
+  media_upmedia:
+    id: media_upmedia
+    name: 上报
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3]
+    roles: [FIRST_RELEASE, INVESTIGATIVE]
+    strong_categories: [A03, A09, A14, A17, A02]
+    strong_evidence_shapes: [CHAT_RECORD, INTERNAL_DOCUMENT, PHOTO, BANK_RECORD]
+    strengths: [政商独家, 派系内幕]
+    source_protection: high
+    verification_capacity: medium
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    historical_examples: [政治人物关系独家]
+    risk_notes: [争议题材多，需编辑部二次确认]
+    scores: {reach: 60, verification: 68, source_protection: 78, speed: 60, complexity: 62, controversy_risk: 55}
+    confidence: 0.7
+
+  media_taipao:
+    id: media_taipao
+    name: 太报
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R3]
+    roles: [INVESTIGATIVE, DATA_ANALYSIS]
+    strong_categories: [A06, A08, A15, A05]
+    strong_evidence_shapes: [SPREADSHEET, DATABASE_RECORD, PROCUREMENT_FILE, MULTI_SOURCE_PACKAGE]
+    strengths: [数据调查, 资料库分析]
+    source_protection: high
+    verification_capacity: high
+    speed: low
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    historical_examples: []
+    risk_notes: [发布节奏较慢]
+    scores: {reach: 40, verification: 78, source_protection: 80, speed: 35, complexity: 85, controversy_risk: 25}
+    confidence: 0.7
+
+  media_beautimode:
+    id: media_beautimode
+    name: 美丽岛电子报
+    entity_type: MEDIA
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2]
+    roles: [AMPLIFIER, DISCLOSURE]
+    strong_categories: [A04, A05, A08, A09]
+    strong_evidence_shapes: [BANK_RECORD, INTERNAL_DOCUMENT, CHAT_RECORD]
+    strengths: [金流指控, 政论放大]
+    source_protection: low
+    verification_capacity: low
+    speed: high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [verification_required: very_high，不得作为单一核验源]
+    scores: {reach: 66, verification: 40, source_protection: 35, speed: 80, complexity: 45, controversy_risk: 75}
+    confidence: 0.5
+
+  media_rwnews:
+    id: media_rwnews
+    name: 菱传媒
+    entity_type: MEDIA
+    status: historical
+    last_verified_date: '2024-06-30'
+    route_types: [R2, R3]
+    roles: [INVESTIGATIVE, DATA_ANALYSIS]
+    strong_categories: [A03, A04, A05, A06]
+    strong_evidence_shapes: [MULTI_SOURCE_PACKAGE, DATABASE_RECORD, SPREADSHEET]
+    strengths: [政经深水区调查]
+    source_protection: high
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    historical_examples: [2021-2023政经调查系列]
+    risk_notes: [已停运，仅作历史参照，不作为当前首选]
+    scores: {reach: 35, verification: 75, source_protection: 70, speed: 30, complexity: 80, controversy_risk: 25}
+    confidence: 0.6
+
+# ============================================================
+# 二、政治人物/揭弊者渠道库（职位不硬编码，靠 current_role 维护）
+# ============================================================
+  actor_huang_kuochang:
+    id: actor_huang_kuochang
+    name: 黄国昌
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R3, R4, R5]
+    roles: [DISCLOSURE, AMPLIFIER, DATA_ANALYSIS]
+    strong_categories: [A02, A03, A04, A05, A06, A08, A15, A18]
+    strong_evidence_shapes: [BANK_RECORD, INTERNAL_DOCUMENT, CONTRACT, PROCUREMENT_FILE, MULTI_SOURCE_PACKAGE]
+    strengths: [复杂金流, 公司关系, 司法, 土地, 绿能, 采购]
+    carrier: [Facebook, YouTube, 记者会, 立法院质询]
+    local_strength: []
+    source_protection: medium
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: [2015-2016炒作课纲与土地案, 2023-2025金流与司法揭弊记者会]
+    risk_notes: [高度政治动员色彩，涉绿营人物议题会放大政治对立，编辑部需独立核验后再引用]
+    scores: {reach: 90, verification: 78, source_protection: 40, speed: 75, complexity: 92, controversy_risk: 70}
+    confidence: 0.8
+
+  actor_wang_hungwei:
+    id: actor_wang_hungwei
+    name: 王鸿薇
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R4, R3]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A01, A06, A07, A08]
+    strong_evidence_shapes: [ACADEMIC_DOCUMENT, OFFICIAL_DOCUMENT, SPREADSHEET]
+    strengths: [文件比对, 论文比对, 公开资料, 记者会展示]
+    carrier: [记者会, Facebook]
+    local_strength: [台北]
+    source_protection: low
+    verification_capacity: medium
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: [论文比对与公开文件记者会]
+    risk_notes: [政党攻防色彩，需自备原始文件比对]
+    scores: {reach: 80, verification: 65, source_protection: 30, speed: 82, complexity: 60, controversy_risk: 65}
+    confidence: 0.7
+
+  actor_hsu_chiaohsin:
+    id: actor_hsu_chiaohsin
+    name: 徐巧芯
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R2, R4]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A06, A07, A08, A09]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, CHAT_RECORD, SPREADSHEET]
+    strengths: [社交媒体快速引爆, 公司资料, 行政文件, 截图, 公开资料]
+    carrier: [Facebook, 记者会]
+    local_strength: [台北]
+    source_protection: low
+    verification_capacity: low
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [verification_required: high，传播快≠事实核验源]
+    scores: {reach: 88, verification: 40, source_protection: 25, speed: 95, complexity: 40, controversy_risk: 80}
+    confidence: 0.6
+
+  actor_ling_tao:
+    id: actor_ling_tao
+    name: 凌涛
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R4, R2]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A06, A08, A09, A13]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, CHAT_RECORD]
+    strengths: [公开文件, 政党攻防, 网路即时]
+    carrier: [Facebook, 记者会]
+    local_strength: []
+    source_protection: low
+    verification_capacity: low
+    speed: high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [verification_required: high]
+    scores: {reach: 68, verification: 38, source_protection: 20, speed: 85, complexity: 35, controversy_risk: 75}
+    confidence: 0.55
+
+  actor_hsieh_lungchieh:
+    id: actor_hsieh_lungchieh
+    name: 谢龙介
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R3, R4]
+    roles: [DISCLOSURE, AMPLIFIER, LOCAL_NETWORK]
+    strong_categories: [A04, A05, A15, A16]
+    strong_evidence_shapes: [PROCUREMENT_FILE, OFFICIAL_DOCUMENT, CHAT_RECORD]
+    strengths: [地方利益网络, 光电, 土地, 工程, 炉碴, 地方派系]
+    carrier: [记者会, Facebook]
+    local_strength: [台南]
+    source_protection: low
+    verification_capacity: medium
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: [台南光电与炉碴议题揭弊]
+    risk_notes: [地方派系色彩强烈，涉及台南场景时具地方监督价值]
+    scores: {reach: 70, verification: 55, source_protection: 25, speed: 75, complexity: 65, controversy_risk: 70}
+    confidence: 0.65
+
+  actor_chen_chiaohua:
+    id: actor_chen_chiaohua
+    name: 陈椒华
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R3, R4]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A06, A16, A18, A07]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, PROCUREMENT_FILE, DATABASE_RECORD]
+    strengths: [环保, 炉碴, 废弃物, 监管, 媒体NCC, 公司治理]
+    carrier: [记者会, 立法院质询]
+    local_strength: []
+    source_protection: medium
+    verification_capacity: medium
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: [炉碴废弃物与监管议题]
+    risk_notes: []
+    scores: {reach: 55, verification: 62, source_protection: 45, speed: 55, complexity: 65, controversy_risk: 45}
+    confidence: 0.65
+
+  actor_chiu_henchih:
+    id: actor_chiu_henchih
+    name: 邱显智
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R3, R5]
+    roles: [DISCLOSURE, VERIFIER, FORMAL_REFERRAL]
+    strong_categories: [A03, A06, A10, A18]
+    strong_evidence_shapes: [BANK_RECORD, PROCUREMENT_FILE, OFFICIAL_DOCUMENT]
+    strengths: [司法, 政府采购, 劳工, 法律分析]
+    carrier: [记者会, 立法院质询]
+    local_strength: []
+    source_protection: medium
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: high
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: [司法案件与政府采购买办]
+    risk_notes: []
+    scores: {reach: 50, verification: 80, source_protection: 55, speed: 50, complexity: 80, controversy_risk: 40}
+    confidence: 0.7
+
+  actor_chen_wanhui:
+    id: actor_chen_wanhui
+    name: 陈琬惠
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R3, R4]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A07, A08, A16, A18]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, SPREADSHEET]
+    strengths: [社会福利, 补助, 地方监督]
+    carrier: [记者会]
+    local_strength: [宜兰]
+    source_protection: medium
+    verification_capacity: medium
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: []
+    scores: {reach: 42, verification: 60, source_protection: 45, speed: 50, complexity: 55, controversy_risk: 35}
+    confidence: 0.6
+
+  actor_yu_shuhui:
+    id: actor_yu_shuhui
+    name: 游淑慧
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R4, R2]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A08, A06, A09, A13]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, ACADEMIC_DOCUMENT]
+    strengths: [公开资料, 文件比对, 记者会]
+    carrier: [记者会, Facebook]
+    local_strength: [台北]
+    source_protection: low
+    verification_capacity: medium
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: []
+    scores: {reach: 55, verification: 62, source_protection: 28, speed: 60, complexity: 55, controversy_risk: 60}
+    confidence: 0.6
+
+  actor_hou_hanting:
+    id: actor_hou_hanting
+    name: 侯汉廷
+    entity_type: POLITICAL_ACTOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R4, R2]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A01, A06, A08, A09]
+    strong_evidence_shapes: [ACADEMIC_DOCUMENT, OFFICIAL_DOCUMENT]
+    strengths: [论文比对, 公开资料, 网路即时]
+    carrier: [Facebook, YouTube, 记者会]
+    local_strength: [台北]
+    source_protection: low
+    verification_capacity: low
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: [论文与学历资料比对]
+    risk_notes: [verification_required: high]
+    scores: {reach: 60, verification: 40, source_protection: 25, speed: 80, complexity: 50, controversy_risk: 70}
+    confidence: 0.55
+
+# ============================================================
+# 三、媒体人/意见领袖渠道库
+# ============================================================
+  pundit_huang_yangming:
+    id: pundit_huang_yangming
+    name: 黄扬明
+    entity_type: JOURNALIST_OR_COMMENTATOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R2, R3]
+    roles: [AMPLIFIER, DATA_ANALYSIS]
+    strong_categories: [A01, A02, A08, A09, A13]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, ACADEMIC_DOCUMENT, CHAT_RECORD]
+    strengths: [政治内部信息, 学术, 人事, 公开文件, 关系补充]
+    carrier: [YouTube, Facebook, 政论节目]
+    source_protection: low
+    verification_capacity: medium
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [政论评论性质，编辑部仍需独立核验]
+    scores: {reach: 62, verification: 60, source_protection: 30, speed: 60, complexity: 65, controversy_risk: 45}
+    confidence: 0.6
+
+  pundit_wu_tzechia:
+    id: pundit_wu_tzechia
+    name: 吴子嘉
+    entity_type: JOURNALIST_OR_COMMENTATOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R2]
+    roles: [AMPLIFIER, DISCLOSURE]
+    strong_categories: [A04, A05, A08, A09, A03]
+    strong_evidence_shapes: [BANK_RECORD, INTERNAL_DOCUMENT, CHAT_RECORD]
+    strengths: [传播能力强, 政治内部消息, 派系, 人事, 土地, 金流指控]
+    carrier: [美丽岛电子报, 董事长开讲, YouTube]
+    source_protection: low
+    verification_capacity: low
+    speed: high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [verification_required: very_high，不得作为单一verifier，具争议性]
+    scores: {reach: 80, verification: 35, source_protection: 25, speed: 85, complexity: 50, controversy_risk: 85}
+    confidence: 0.5
+
+  pundit_chiu_yi:
+    id: pundit_chiu_yi
+    name: 邱毅
+    entity_type: JOURNALIST_OR_COMMENTATOR
+    status: active
+    last_verified_date: '2026-08-01'
+    current_role: ""
+    role_last_verified: ""
+    route_types: [R2, R4]
+    roles: [DISCLOSURE, AMPLIFIER]
+    strong_categories: [A03, A04, A06, A09]
+    strong_evidence_shapes: [CONTRACT, OFFICIAL_DOCUMENT, CHAT_RECORD]
+    strengths: [公司, 合约, 政商关系, 进口农业议题]
+    carrier: [YouTube, Facebook]
+    source_protection: low
+    verification_capacity: low
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    historical_examples: []
+    risk_notes: [verification_required: high，争议人物，需较高二次核验]
+    scores: {reach: 65, verification: 35, source_protection: 20, speed: 60, complexity: 60, controversy_risk: 90}
+    confidence: 0.5
+
+# ============================================================
+# 四、社交平台（source_authenticity_risk 标注）
+# ============================================================
+  platform_facebook:
+    id: platform_facebook
+    name: Facebook
+    entity_type: SOCIAL_PLATFORM
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R1]
+    roles: [FIRST_RELEASE, AMPLIFIER]
+    strong_categories: [A11, A02, A06, A08]
+    strong_evidence_shapes: [CHAT_RECORD, OFFICIAL_DOCUMENT, PHOTO]
+    strengths: [实名当事人, 政治人物文件发布, 长文, 截图, 记者同步跟进]
+    source_protection: low
+    verification_capacity: low
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    source_authenticity_risk: medium
+    risk_notes: [匿名来源需谨慎，公开账号发布即放弃匿名]
+    scores: {reach: 95, verification: 30, source_protection: 20, speed: 95, complexity: 30, controversy_risk: 50}
+    confidence: 0.7
+
+  platform_threads:
+    id: platform_threads
+    name: Threads
+    entity_type: SOCIAL_PLATFORM
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R1]
+    roles: [FIRST_RELEASE, AMPLIFIER]
+    strong_categories: [A11, A12]
+    strong_evidence_shapes: [FIRST_PERSON_TESTIMONY]
+    strengths: [年轻员工, 职场霸凌, 内部组织问题, 第一人称短文本连续爆料]
+    source_protection: low
+    verification_capacity: low
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    source_authenticity_risk: high
+    risk_notes: [匿名风险较高]
+    scores: {reach: 78, verification: 25, source_protection: 15, speed: 95, complexity: 20, controversy_risk: 60}
+    confidence: 0.65
+
+  platform_ptt:
+    id: platform_ptt
+    name: PTT
+    entity_type: SOCIAL_PLATFORM
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R1]
+    roles: [AMPLIFIER]
+    strong_categories: [A13, A14, A15]
+    strong_evidence_shapes: [PHOTO, CHAT_RECORD]
+    strengths: [匿名线索, 照片, 私德, 内部风声]
+    source_protection: low
+    verification_capacity: low
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    source_authenticity_risk: high
+    risk_notes: [source_authenticity_risk: high，不能作为verifier，匿名贴文伪造成本低]
+    scores: {reach: 60, verification: 15, source_protection: 40, speed: 90, complexity: 15, controversy_risk: 70}
+    confidence: 0.5
+
+  platform_x:
+    id: platform_x
+    name: X (Twitter)
+    entity_type: SOCIAL_PLATFORM
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R1]
+    roles: [AMPLIFIER, FIRST_RELEASE]
+    strong_categories: [A10, A13, A14]
+    strong_evidence_shapes: [PHOTO, VIDEO]
+    strengths: [短讯息即时, 舆论快速发酵]
+    source_protection: low
+    verification_capacity: low
+    speed: very_high
+    complexity_capacity: low
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    source_authenticity_risk: high
+    risk_notes: [不宜作为原始文件安全接收渠道]
+    scores: {reach: 80, verification: 20, source_protection: 15, speed: 96, complexity: 15, controversy_risk: 60}
+    confidence: 0.55
+
+  platform_youtube:
+    id: platform_youtube
+    name: YouTube
+    entity_type: SOCIAL_PLATFORM
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R4]
+    roles: [AMPLIFIER]
+    strong_categories: [A03, A04, A05, A08]
+    strong_evidence_shapes: [BANK_RECORD, INTERNAL_DOCUMENT]
+    strengths: [长篇说明, 文件展示, 政论放大, 直播记者会]
+    source_protection: low
+    verification_capacity: low
+    speed: high
+    complexity_capacity: medium
+    suitable_for_anonymous_source: false
+    suitable_for_sensitive_material: false
+    source_authenticity_risk: medium
+    risk_notes: [通常是AMPLIFIER而非原始文件安全接收渠道]
+    scores: {reach: 85, verification: 25, source_protection: 15, speed: 85, complexity: 45, controversy_risk: 45}
+    confidence: 0.6
+
+# ============================================================
+# 五、正式机关（具名，支持 location-aware routing）
+# ============================================================
+  authority_prosecutor_generic:
+    id: authority_prosecutor_generic
+    name: 相关地方检察署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL, VERIFIER]
+    strong_categories: [A02, A03, A10, A13, A15, A17]
+    strong_evidence_shapes: [BANK_RECORD, SPREADSHEET, INTERNAL_DOCUMENT]
+    strengths: [刑事侦查权, 证据保全, 传唤调查]
+    location_scope: [台湾各地]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: [正式检举需书面具名，系统不代送]
+    scores: {reach: 20, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.95
+
+  authority_taipei_dpo:
+    id: authority_taipei_dpo
+    name: 台北地方检察署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A03, A10, A15, A17]
+    strong_evidence_shapes: [BANK_RECORD, INTERNAL_DOCUMENT]
+    strengths: [辖内贪污与重大刑事]
+    location_scope: [台北]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: []
+    scores: {reach: 15, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_tainan_dpo:
+    id: authority_tainan_dpo
+    name: 台南地方检察署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A03, A04, A05, A10, A15]
+    strong_evidence_shapes: [BANK_RECORD, PROCUREMENT_FILE]
+    strengths: [辖内土地光电与刑事]
+    location_scope: [台南]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: []
+    scores: {reach: 15, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_kaohsiung_dpo:
+    id: authority_kaohsiung_dpo
+    name: 高雄地方检察署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A03, A04, A05, A15]
+    strong_evidence_shapes: [BANK_RECORD]
+    strengths: [辖内重大刑事]
+    location_scope: [高雄]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: []
+    scores: {reach: 15, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_newtaipei_dpo:
+    id: authority_newtaipei_dpo
+    name: 新北地方检察署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A03, A10, A15]
+    strong_evidence_shapes: [BANK_RECORD]
+    strengths: [辖内重大刑事]
+    location_scope: [新北]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: []
+    scores: {reach: 15, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_taichung_dpo:
+    id: authority_taichung_dpo
+    name: 台中地方检察署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A03, A04, A05, A15]
+    strong_evidence_shapes: [BANK_RECORD]
+    strengths: [辖内重大刑事]
+    location_scope: [台中]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: []
+    scores: {reach: 15, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_taoyuan_dpo:
+    id: authority_taoyuan_dpo
+    name: 桃园地方检察署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A03, A04, A05, A15]
+    strong_evidence_shapes: [BANK_RECORD]
+    strengths: [辖内重大刑事]
+    location_scope: [桃园]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: []
+    scores: {reach: 15, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_investigation_bureau:
+    id: authority_investigation_bureau
+    name: 法务部调查局
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL, VERIFIER]
+    strong_categories: [A03, A04, A05, A06, A16, A17, A15]
+    strong_evidence_shapes: [BANK_RECORD, INTERNAL_DOCUMENT, CLASSIFIED_DOCUMENT]
+    strengths: [重大金流, 国土开发, 国安, 环保犯罪]
+    location_scope: [台湾各地]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: [国安案件通报管道独立，新闻媒体涉密材料应先法律审查]
+    scores: {reach: 20, verification: 98, source_protection: 85, speed: 20, complexity: 95, controversy_risk: 10}
+    confidence: 0.95
+
+  authority_aclc:
+    id: authority_aclc
+    name: 法务部廉政署
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A03, A06, A07, A18]
+    strong_evidence_shapes: [BANK_RECORD, PROCUREMENT_FILE]
+    strengths: [公务员廉政, 采购舞弊]
+    location_scope: [台湾各地]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: []
+    scores: {reach: 18, verification: 97, source_protection: 85, speed: 20, complexity: 90, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_control_yuan:
+    id: authority_control_yuan
+    name: 监察院
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL, VERIFIER]
+    strong_categories: [A07, A08, A18, A06]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, SPREADSHEET]
+    strengths: [财产申报, 补助查核, 纠弹]
+    location_scope: [台湾各地]
+    source_protection: high
+    verification_capacity: very_high
+    speed: low
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: [流程较慢，不适合时效性强的灭证场景]
+    scores: {reach: 20, verification: 95, source_protection: 80, speed: 15, complexity: 80, controversy_risk: 10}
+    confidence: 0.9
+
+  authority_academic_ethics:
+    id: authority_academic_ethics
+    name: 学校学伦会
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL, VERIFIER]
+    strong_categories: [A01]
+    strong_evidence_shapes: [ACADEMIC_DOCUMENT]
+    strengths: [学术伦理调查, 论文比对]
+    location_scope: [各校]
+    source_protection: high
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    risk_notes: [须确认涉案人毕业学校]
+    scores: {reach: 10, verification: 88, source_protection: 75, speed: 40, complexity: 60, controversy_risk: 15}
+    confidence: 0.85
+
+  authority_labor:
+    id: authority_labor
+    name: 劳动主管机关
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A11, A12, A13]
+    strong_evidence_shapes: [FIRST_PERSON_TESTIMONY, AUDIO]
+    strengths: [职灾, 劳动条件, 就业歧视]
+    location_scope: [台湾各地]
+    source_protection: high
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    risk_notes: []
+    scores: {reach: 10, verification: 82, source_protection: 70, speed: 40, complexity: 50, controversy_risk: 10}
+    confidence: 0.8
+
+  authority_gender_equality:
+    id: authority_gender_equality
+    name: 性平申诉机制
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A11]
+    strong_evidence_shapes: [FIRST_PERSON_TESTIMONY, CHAT_RECORD]
+    strengths: [性骚扰申诉调查]
+    location_scope: [各机关学校]
+    source_protection: high
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: low
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: [申述人意愿优先]
+    scores: {reach: 10, verification: 82, source_protection: 75, speed: 40, complexity: 30, controversy_risk: 10}
+    confidence: 0.8
+
+  authority_ncc:
+    id: authority_ncc
+    name: NCC国家通讯传播委员会
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A18, A16]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT]
+    strengths: [媒体监理, 传播法规]
+    location_scope: [台湾各地]
+    source_protection: medium
+    verification_capacity: high
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    risk_notes: []
+    scores: {reach: 10, verification: 80, source_protection: 60, speed: 35, complexity: 55, controversy_risk: 15}
+    confidence: 0.75
+
+  authority_procurement_audit:
+    id: authority_procurement_audit
+    name: 政府采购与审计主管机关
+    entity_type: FORMAL_AUTHORITY
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R5]
+    roles: [FORMAL_REFERRAL]
+    strong_categories: [A06, A07]
+    strong_evidence_shapes: [PROCUREMENT_FILE, SPREADSHEET]
+    strengths: [采购程序审查, 审计]
+    location_scope: [工程会/审计部/机关政风]
+    source_protection: medium
+    verification_capacity: high
+    speed: low
+    complexity_capacity: high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    risk_notes: [行政监督为主，涉刑事仍应走检调]
+    scores: {reach: 10, verification: 82, source_protection: 60, speed: 25, complexity: 70, controversy_risk: 10}
+    confidence: 0.75
+
+# ============================================================
+# 六、地方吹哨渠道（LOCAL_WHISTLEBLOWER_CHANNEL，类型化为主）
+# ============================================================
+  local_tainan_network:
+    id: local_tainan_network
+    name: 台南在地监督渠道
+    entity_type: LOCAL_WHISTLEBLOWER_CHANNEL
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R3, R4]
+    roles: [LOCAL_NETWORK, DISCLOSURE]
+    strong_categories: [A04, A05, A16]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, PROCUREMENT_FILE]
+    strengths: [地方利益网络, 光电, 炉碴, 农地]
+    location_scope: [台南]
+    source_protection: medium
+    verification_capacity: low
+    speed: medium
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    risk_notes: [类型化建议：当地里长/议员/环保团体/地方记者，不虚构具体个人]
+    scores: {reach: 30, verification: 40, source_protection: 50, speed: 50, complexity: 55, controversy_risk: 50}
+    confidence: 0.5
+
+  local_env_orgs:
+    id: local_env_orgs
+    name: 环保团体/在地环团
+    entity_type: LOCAL_WHISTLEBLOWER_CHANNEL
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R3, R4]
+    roles: [LOCAL_NETWORK, DISCLOSURE]
+    strong_categories: [A16, A05]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT, DATABASE_RECORD]
+    strengths: [污染举证, 公听会监督]
+    location_scope: [台湾各地]
+    source_protection: medium
+    verification_capacity: medium
+    speed: low
+    complexity_capacity: medium
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    risk_notes: [类型化建议，不虚构具体团体名]
+    scores: {reach: 25, verification: 45, source_protection: 55, speed: 30, complexity: 50, controversy_risk: 40}
+    confidence: 0.5
+
+  local_farmers:
+    id: local_farmers
+    name: 农民组织/农田水利渠道
+    entity_type: LOCAL_WHISTLEBLOWER_CHANNEL
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R3]
+    roles: [LOCAL_NETWORK]
+    strong_categories: [A04, A16]
+    strong_evidence_shapes: [OFFICIAL_DOCUMENT]
+    strengths: [农地流失, 土方, 灌溉]
+    location_scope: [台湾各地]
+    source_protection: medium
+    verification_capacity: low
+    speed: low
+    complexity_capacity: low
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: false
+    risk_notes: [类型化建议]
+    scores: {reach: 20, verification: 30, source_protection: 45, speed: 25, complexity: 35, controversy_risk: 30}
+    confidence: 0.4
+
+# ============================================================
+# 七、编辑部内部渠道（INTERNAL_NEWSROOM）
+# ============================================================
+  internal_newsroom:
+    id: internal_newsroom
+    name: 本报编辑部调查线
+    entity_type: INTERNAL_NEWSROOM
+    status: active
+    last_verified_date: '2026-08-01'
+    route_types: [R2, R3]
+    roles: [FIRST_RELEASE, INVESTIGATIVE, VERIFIER]
+    strong_categories: [A01, A02, A03, A04, A05, A06, A07, A08, A09, A10, A11, A12, A13, A14, A15, A16, A17, A18]
+    strong_evidence_shapes: [CHAT_RECORD, AUDIO, VIDEO, PHOTO, BANK_RECORD, CONTRACT,
+                             INTERNAL_DOCUMENT, OFFICIAL_DOCUMENT, PROCUREMENT_FILE,
+                             SPREADSHEET, DATABASE_RECORD, ACADEMIC_DOCUMENT, LOCATION_DATA,
+                             MULTI_SOURCE_PACKAGE]
+    strengths: [编辑部安全审阅, 事实核验, 匿名信源保护, 发布节奏控制]
+    source_protection: very_high
+    verification_capacity: very_high
+    speed: medium
+    complexity_capacity: very_high
+    suitable_for_anonymous_source: true
+    suitable_for_sensitive_material: true
+    risk_notes: [内部兜底渠道，通常与外部媒体二选一]
+    scores: {reach: 60, verification: 90, source_protection: 95, speed: 60, complexity: 90, controversy_risk: 20}
+    confidence: 0.85

@@ -1,0 +1,71 @@
+{"id": "edge02_builder_fee", "media": ["media_mirror", "media_tvbs"], "actor": ["actor_huang_kuochang"], "formal": ["authority_investigation_bureau", "authority_prosecutor_generic"], "note": "顾问费协调"}
+{"id": "edge04_sister_no_work", "media": ["media_udn", "media_mirror"], "formal": ["authority_prosecutor_generic"], "note": "胞姐不上班"}
+{"id": "edge06_prebid_spec", "media": ["media_udn", "media_tvbs"], "actor": ["actor_huang_kuochang", "actor_chiu_henchih"], "formal": ["authority_aclc"], "note": "规格量身"}
+{"id": "edge09_new_evidence_after_ex", "media": ["media_udn", "media_mirror"], "formal": ["authority_prosecutor_generic"], "note": "EX新金流"}
+{"id": "hv01_headcount", "media": ["media_udn", "media_mirror", "media_tvbs"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "人头助理"}
+{"id": "hv02_bribe_building", "media": ["media_mirror", "media_tvbs", "media_udn"], "actor": ["actor_huang_kuochang"], "formal": ["authority_investigation_bureau", "authority_prosecutor_generic"], "note": "建商顾问费"}
+{"id": "hv03_land_rezoning", "media": ["media_mirror", "media_udn"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic", "authority_investigation_bureau"], "note": "土地重划"}
+{"id": "hv04_solar", "media": ["media_mirror", "media_udn", "media_tvbs"], "actor": ["actor_huang_kuochang"], "formal": ["authority_investigation_bureau"], "note": "光电仲介费"}
+{"id": "hv05_procurement_leak", "media": ["media_udn", "media_tvbs", "media_mirror"], "actor": ["actor_chiu_henchih", "actor_huang_kuochang", "actor_wang_hungwei"], "formal": ["authority_aclc", "authority_procurement_audit"], "note": "需求书外流"}
+{"id": "hv06_subsidy", "media": ["media_udn", "media_tvbs"], "actor": ["actor_wang_hungwei"], "formal": ["authority_control_yuan"], "note": "补助协会"}
+{"id": "hv08_kin_contract", "media": ["media_tvbs", "media_upmedia", "media_mirror"], "formal": ["authority_control_yuan"], "note": "儿子公司发包"}
+{"id": "hv09_vote_buying", "media": ["media_udn", "media_mirror"], "formal": ["authority_prosecutor_generic"], "note": "买票"}
+{"id": "hv10_sexual_harassment", "media": ["media_mirror", "media_pts"], "formal": ["authority_labor", "authority_gender_equality"], "note": "工读生申诉"}
+{"id": "hv11_doc_leak", "media": ["internal_newsroom", "media_mirror"], "formal": ["authority_investigation_bureau", "authority_prosecutor_generic"], "no_social_top": true, "no_fun_top": true, "note": "密件翻拍"}
+{"id": "hv12_flyash", "media": ["media_udn", "media_pts", "media_tvbs"], "actor": ["actor_chen_chiaohua"], "formal": ["authority_investigation_bureau"], "note": "炉碴"}
+{"id": "hv13_drink_drive", "media": ["media_mirror", "media_tvbs"], "formal": ["authority_prosecutor_generic"], "note": "酒驾"}
+{"id": "hv14_gang", "media": ["media_mirror", "media_udn"], "formal": ["authority_prosecutor_generic"], "note": "角头投资"}
+{"id": "hv15_salary_fund", "media": ["media_udn", "media_mirror"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "薪资回流"}
+{"id": "hv16_media_sex", "media": ["media_mirror", "media_tvbs"], "formal": ["authority_control_yuan"], "note": "权势婚外"}
+{"id": "hv17_admin_permit", "media": ["media_tvbs", "media_mirror"], "formal": ["authority_aclc", "authority_control_yuan"], "note": "施压许可"}
+{"id": "hv18_suppress_whistle", "media": ["media_mirror", "media_pts"], "formal": ["authority_prosecutor_generic", "authority_labor"], "note": "恐吓爆料人"}
+{"id": "hv19_thesis", "media": ["media_tvbs", "media_udn", "media_mirror"], "actor": ["actor_wang_hungwei", "pundit_huang_yangming"], "formal": ["authority_academic_ethics"], "note": "学术-学伦调查"}
+{"id": "hv20_cash_at_home", "media": ["media_mirror", "media_udn"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "来源不明现金"}
+{"id": "im01_coordinate_build", "media": ["media_mirror", "media_tvbs"], "actor": ["actor_huang_kuochang"], "formal": ["authority_investigation_bureau"], "note": "主任对话"}
+{"id": "im02_deposit_card", "media": ["media_udn", "media_mirror", "media_tvbs"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "提款卡"}
+{"id": "im03_spec_align", "media": ["media_udn", "media_tvbs"], "actor": ["actor_chiu_henchih", "actor_huang_kuochang"], "formal": ["authority_aclc"], "note": "报价一致"}
+{"id": "im04_solar_fee", "media": ["media_mirror", "media_tvbs"], "actor": ["actor_huang_kuochang"], "formal": ["authority_investigation_bureau"], "note": "光电顾问费"}
+{"id": "im05_rezoning_fee", "media": ["media_mirror", "media_udn"], "actor": ["actor_huang_kuochang"], "formal": ["authority_investigation_bureau"], "note": "土地变更金流"}
+{"id": "im07_harass_pressure", "media": ["media_mirror", "media_pts"], "formal": ["authority_labor"], "note": "性骚调职"}
+{"id": "im08_doc_copy", "media": ["internal_newsroom", "media_mirror"], "formal": ["authority_investigation_bureau"], "no_social_top": true, "no_fun_top": true, "note": "翻拍密件"}
+{"id": "im09_flyash_fee", "media": ["media_pts", "media_udn"], "actor": ["actor_chen_chiaohua"], "formal": ["authority_investigation_bureau"], "note": "清运处理费"}
+{"id": "im10_relatives_salary", "media": ["media_tvbs", "media_udn", "media_mirror"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "母亲挂名"}
+{"id": "rc01_thesis_turnitin", "media": ["media_tvbs", "media_udn", "media_mirror"], "actor": ["actor_wang_hungwei", "pundit_huang_yangming"], "formal": ["authority_academic_ethics"], "note": "学术-T01"}
+{"id": "rc02_sexharass_named", "media": ["media_mirror", "media_tvbs", "media_pts"], "platform": ["platform_facebook", "platform_threads"], "formal": ["authority_labor", "authority_gender_equality"], "victim_first": true, "note": "性骚实名"}
+{"id": "rc03_sexharass_anon", "media": ["media_mirror", "media_pts", "media_tvbs"], "formal": ["authority_gender_equality", "authority_labor"], "no_social_top": true, "note": "性骚匿名禁社媒"}
+{"id": "rc04_bully_named", "media": ["media_pts", "media_mirror"], "formal": ["authority_labor", "authority_gender_equality"], "platform": ["platform_threads", "platform_facebook"], "note": "霸凌实名"}
+{"id": "rc05_bribe_bankflow", "media": ["media_mirror", "media_tvbs", "media_udn"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic", "authority_investigation_bureau"], "note": "收贿金流"}
+{"id": "rc06_destruction_risk", "media": ["media_mirror", "media_tvbs"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "avoid_top": ["platform_ptt"], "note": "灭证优先"}
+{"id": "rc07_procurement_prebid", "media": ["media_udn", "media_tvbs", "media_mirror"], "actor": ["actor_chiu_henchih", "actor_huang_kuochang", "actor_wang_hungwei"], "formal": ["authority_aclc", "authority_procurement_audit"], "note": "招标前接触"}
+{"id": "rc08_donation_quid", "media": ["media_udn", "media_mirror", "media_storm"], "actor": ["actor_huang_kuochang", "actor_chiu_henchih"], "formal": ["authority_control_yuan", "authority_investigation_bureau"], "note": "献金换标案"}
+{"id": "rc09_affair_photo", "media": ["media_mirror", "media_upmedia", "media_tvbs"], "formal": ["authority_control_yuan"], "avoid_top": ["authority_prosecutor_generic"], "note": "私德照片"}
+{"id": "rc11_military_doc", "media": ["internal_newsroom", "media_mirror"], "formal": ["authority_investigation_bureau", "authority_prosecutor_generic"], "no_social_top": true, "no_fun_top": true, "note": "国安密件"}
+{"id": "rc12_anonymous_doc", "media": ["internal_newsroom", "media_mirror"], "formal": ["authority_investigation_bureau"], "no_social_top": true, "no_fun_top": true, "note": "匿名文件"}
+{"id": "rc13_land_solar_complex", "media": ["media_mirror", "media_udn"], "actor": ["actor_huang_kuochang"], "formal": ["authority_investigation_bureau", "authority_prosecutor_generic"], "note": "光电网络"}
+{"id": "rc14_thesis_hearing", "media": ["media_tvbs", "media_udn", "media_mirror"], "actor": ["actor_wang_hungwei", "pundit_huang_yangming"], "formal": ["authority_academic_ethics"], "note": "学术-调查中"}
+{"id": "rc15_organized_crime", "media": ["media_mirror", "media_udn"], "formal": ["authority_prosecutor_generic", "authority_investigation_bureau"], "note": "组织犯罪"}
+{"id": "rc16_vote_buying", "media": ["media_udn", "media_mirror"], "formal": ["authority_prosecutor_generic"], "note": "每票五百"}
+{"id": "rc17_ghost_assistant", "media": ["media_udn", "media_mirror"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "胞姐挂名"}
+{"id": "rc18_suppress_thirdparty", "media": ["media_mirror", "media_pts"], "formal": ["authority_labor"], "no_social_top": true, "note": "性骚第三人检举"}
+{"id": "rc19_sexharass_threatened", "media": ["media_mirror", "media_pts", "media_tvbs"], "formal": ["authority_labor", "authority_gender_equality"], "no_social_top": true, "note": "匿名+恐吓"}
+{"id": "rc20_power_affair_chat", "media": ["media_mirror", "media_tvbs"], "formal": ["authority_control_yuan"], "note": "权势婚外"}
+{"id": "rc21_subsidy_invoice", "media": ["media_udn", "media_tvbs"], "actor": ["actor_wang_hungwei"], "formal": ["authority_control_yuan"], "note": "假发票核销"}
+{"id": "rc22_flyash_fee", "media": ["media_pts", "media_udn", "media_tvbs"], "actor": ["actor_chen_chiaohua"], "formal": ["authority_investigation_bureau", "authority_prosecutor_generic"], "note": "炉碴对价"}
+{"id": "rc23_old_case_new_flow", "media": ["media_udn", "media_mirror"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "旧案新金流"}
+{"id": "rc24_sealed_internal_doc", "media": ["internal_newsroom", "media_mirror"], "formal": ["authority_investigation_bureau"], "no_social_top": true, "no_fun_top": true, "note": "标密内部文件"}
+{"id": "rc25_sex_party_photo", "media": ["media_mirror", "media_ctwant", "media_nextapple"], "note": "性招待照片"}
+{"id": "rc26_land_rezone_cash", "media": ["media_mirror", "media_udn"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic", "authority_investigation_bureau"], "note": "重划金流"}
+{"id": "rc29_insider_anon_politics", "media": ["media_mirror", "media_tvbs"], "formal": ["authority_investigation_bureau"], "no_social_top": true, "note": "内部匿名检举"}
+{"id": "rc31_domestic_violence", "media": ["media_pts", "media_mirror", "media_tvbs"], "formal": ["authority_prosecutor_generic", "authority_gender_equality"], "no_social_top": true, "note": "家暴保护当事人"}
+{"id": "rc32_drunk_drive_suppress", "media": ["media_mirror", "media_tvbs"], "formal": ["authority_prosecutor_generic"], "note": "酒驾吃案"}
+{"id": "rc33_permit_favor", "media": ["media_tvbs", "media_mirror"], "actor": ["actor_chen_chiaohua"], "formal": ["authority_aclc", "authority_control_yuan"], "note": "许可乾股"}
+{"id": "rc34_money_laundering", "media": ["media_mirror", "media_storm"], "actor": ["actor_huang_kuochang"], "formal": ["authority_prosecutor_generic"], "note": "洗钱"}
+{"id": "rc35_hacked_location", "media": ["internal_newsroom", "media_mirror"], "formal": ["authority_investigation_bureau"], "no_social_top": true, "note": "黑客资料"}
+{"id": "rc36_fake_degree", "media": ["media_tvbs", "media_udn", "media_mirror"], "actor": ["actor_wang_hungwei", "pundit_huang_yangming"], "formal": ["authority_academic_ethics"], "note": "学历造假"}
+{"id": "rc37_declare_diff", "media": ["media_udn", "media_storm"], "actor": ["actor_wang_hungwei", "pundit_huang_yangming"], "formal": ["authority_control_yuan"], "note": "申报差异"}
+{"id": "rc38_rigged_bid", "media": ["media_udn", "media_mirror", "media_tvbs"], "actor": ["actor_chiu_henchih", "actor_huang_kuochang"], "formal": ["authority_prosecutor_generic", "authority_investigation_bureau"], "note": "绑标"}
+{"id": "rc39_gravel_money", "media": ["media_udn", "media_mirror"], "formal": ["authority_prosecutor_generic"], "note": "砂石对价"}
+{"id": "rc40_video_collusion", "media": ["media_udn", "media_mirror"], "actor": ["actor_chiu_henchih"], "formal": ["authority_aclc", "authority_investigation_bureau"], "avoid_top": ["platform_ptt"], "note": "匿名视频围标"}
+{"id": "rc41_junket_fraud", "media": ["media_udn", "media_tvbs"], "actor": ["actor_wang_hungwei"], "formal": ["authority_control_yuan"], "note": "考察核销"}
+{"id": "rc44_party_staff_threads", "media": ["media_mirror", "media_tvbs", "media_pts"], "formal": ["authority_gender_equality", "authority_labor"], "platform": ["platform_facebook", "platform_threads"], "note": "党工实名揭性骚"}
+{"id": "rc_tainan_solar", "media": ["media_mirror", "media_udn"], "actor": ["actor_huang_kuochang", "actor_hsieh_lungchieh"], "formal": ["authority_investigation_bureau", "authority_prosecutor_generic"], "location_tainan": true, "note": "台南光电"}

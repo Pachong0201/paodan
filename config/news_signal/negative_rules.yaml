@@ -1,0 +1,88 @@
+version: '1.0'
+global_X_terms:
+- 不起訴
+- 不起訴處分
+- 不起訴確定
+- 罪嫌不足
+- 查無不法
+- 查無具體不法
+- 無異常金流
+- 證據不足
+- 無證據證明
+- 無從證明
+- 無法證明
+- 無罪
+- 獲判無罪
+- 改判無罪
+- 無罪確定
+- 當選有效
+- 改判當選有效
+- 調查不成立
+- 性騷不成立
+- 撤銷處分
+- 撤銷原判
+- 駁回上訴
+- 與犯罪無關
+- 無法律上因果關係
+downgrade_rules:
+- id: N01
+  condition: 仅有政治攻击、辱骂、情绪性评价，无具体时间/人物/行为/证据
+  score_delta: -35
+  max_score: 25
+- id: N02
+  condition: 仅出现‘贪污/弊案/黑金/性骚’等标签，无事实描述
+  score_delta: -25
+  max_score: 40
+- id: N03
+  condition: 仅有合照、同桌、同场、握手，未见资金/组织/业务关系
+  score_delta: -30
+  max_score: 25
+- id: N04
+  condition: 一般私人感情或绯闻，无违法、公职伦理、权势关系或公共利益
+  score_delta: -30
+  max_score: 30
+- id: N05
+  condition: 新闻或邮件明确存在不起诉/无罪/查无不法等EX结果，且无新增证据
+  score_delta: -35
+  max_score: 35
+- id: N06
+  condition: 出现否认/澄清但同时存在起诉、判决或正式调查
+  score_delta: 0
+  note: 不得仅因否认而降级；需并列记录
+- id: N07
+  condition: 命中敏感词但对象明显不是目标政治人物或相关主体
+  score_delta: -25
+  max_score: 35
+- id: N08
+  condition: 历史旧闻重复转发，邮件未提供任何新增人物、公司、账户、金额、文件、时间或证据
+  score_delta: -30
+  max_score: 40
+context_exclusions:
+- term: 摸
+  exclude_if:
+  - 摸彩
+  - 觸摸螢幕
+  - 摸索
+  - 撫摸寵物
+- term: 抱
+  exclude_if:
+  - 抱怨
+  - 抱持
+  - 懷抱
+- term: 親
+  exclude_if:
+  - 親自
+  - 親友
+  - 親屬
+  - 父親
+  - 母親
+- term: 回饋
+  exclude_if:
+  - 問卷回饋
+  - 使用者回饋
+  - 服務回饋
+- term: 協調
+  exclude_if:
+  - 一般公開會議
+  - 跨部門例行協調
+  note: 仅一般行政协调不得单独触发

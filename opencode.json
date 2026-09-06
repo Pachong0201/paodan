@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "shell": "powershell.exe",
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "python --version": "allow",
+      "python -m pytest *": "allow",
+      "python -m app.main *": "allow",
+      "pip list": "allow",
+      "pip install *": "ask",
+      "rm *": "deny",
+      "del *": "deny",
+      "Remove-Item *": "deny"
+    }
+  }
+}

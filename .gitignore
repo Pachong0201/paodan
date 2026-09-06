@@ -1,0 +1,52 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# ===== 测试/缓存 =====
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# ===== 环境/密钥（绝不上传）=====
+.env
+.env.local
+
+# ===== 日志 =====
+logs/
+*.log
+
+# ===== 本地调试 scratch / 临时 tmp（清理后上传时排除）=====
+scratch_*.py
+scratch_*.txt
+tmp_*.json
+tmp_*.txt
+FINAL_METRICS.txt
+
+# ===== data：只保留代码需要的结构，排除隐私邮件/生成结果/数据库 =====
+data/*.db
+data/*.db-*
+data/*.sqlite*
+data/reports/
+data/review_queue/
+data/processed/
+data/user_uploads/
+data/inbox/*
+!data/inbox/.gitkeep
+data/**/*.attachments_cache/
+# 保留空目录结构
+!data/known_cases.jsonl
+
+# ===== 工具产物 =====
+.commandcode/
+tw_political_news_signal_v1/
+wheels/
+.vscode/
+.idea/
+
+# ===== 系统 =====
+.DS_Store
+Thumbs.db

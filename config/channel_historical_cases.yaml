@@ -1,0 +1,372 @@
+# 具名渠道历史案例库 v1.0
+# 近 5 年真实台湾政治/政商揭弊案例（2020-2026）。
+# 用途：为规则与 LLM 提供「哪类题材通常由哪类渠道首发/放大/核验」的参照。
+# 角色分类：
+#   FIRST_RELEASE   真正首次披露的媒体/个人（不是后续转载）
+#   EARLY_AMPLIFIER 首发后第一波放大者
+#   VERIFIER        事后核验/司法确认来源（检方、主管机关、校方等，不是首发）
+# source_urls 为公开报道引用（供编辑部人工回查，非自动抓取）。
+# 注：案例作为「经验参照」而非「事实主张依据」；时间、首发媒体以公开报道为准，
+# 如编辑部有更正信息应更新本文件。
+version: '1.0'
+
+cases:
+  - case_id: HC01
+    title: 高虹安助理费案（立委任内人头助理与低薪高报）
+    date: '2022-12'
+    category: A02
+    first_release_source: 镜周刊
+    first_release_type: MEDIA
+    amplifiers: [PTT, 政论节目, 各新闻台即时]
+    verification_sources: [台北地检署（起诉）, 台北地院（判决）]
+    evidence_shape: BANK_RECORD
+    result: 一审有罪/上诉审理中；媒体首发->司法核验链完整
+    source_urls: []
+
+  - case_id: HC02
+    title: 高虹安论文抄袭争议（辛辛那提博士论文与资策会报告）
+    date: '2022-09'
+    category: A01
+    first_release_source: 时代力量/王婉谕记者会
+    first_release_type: POLITICAL_ACTOR
+    amplifiers: [PTT, 政论节目, TVBS, 联合报]
+    verification_sources: [资策会（鉴识）, 辛辛那提大学（回应）]
+    evidence_shape: ACADEMIC_DOCUMENT
+    result: 学位后续由辛辛那提大学撤销；政治人物记者会首发->机构核验
+    source_urls: []
+
+  - case_id: HC03
+    title: 林智坚论文抄袭案（台大国发所）
+    date: '2022-07'
+    category: A01
+    first_release_source: 王鸿薇记者会
+    first_release_type: POLITICAL_ACTOR
+    amplifiers: [PTT, YouTube政论, TVBS, 联合报]
+    verification_sources: [台大学伦会（认定抄袭撤销学位）]
+    evidence_shape: ACADEMIC_DOCUMENT
+    result: 台大撤销学位；王鸿薇型记者会->学伦核验
+    source_urls: []
+
+  - case_id: HC04
+    title: 郑文灿涉土地开发收贿案（桃园市长任内华亚科创园区）
+    date: '2024-07'
+    category: A03
+    first_release_source: 桃园地检署（声押）
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [各新闻台, 政论节目, 黄国昌评论]
+    verification_sources: [桃园地检署, 台北地院羁押庭]
+    evidence_shape: BANK_RECORD
+    result: 起诉；司法首发->媒体跟进->政论放大
+    source_urls: []
+
+  - case_id: HC05
+    title: 台南光电利益争议连环揭弊
+    date: '2023-01'
+    category: A05
+    first_release_source: 镜周刊
+    first_release_type: MEDIA
+    amplifiers: [谢龙介记者会, 政论节目]
+    verification_sources: [台南地检署, 调查局台南市调查处]
+    evidence_shape: MULTI_SOURCE_PACKAGE
+    result: 多起进入司法侦办；媒体首发->地方政治人物放大->司法核验
+    source_urls: []
+
+  - case_id: HC06
+    title: 炉碴回填农地案（台南学甲）
+    date: '2021-01'
+    category: A16
+    first_release_source: 台南环团/立委陈椒华记者会
+    first_release_type: LOCAL_WHISTLEBLOWER_CHANNEL
+    amplifiers: [公视, 联合报, 镜周刊跟进]
+    verification_sources: [台南地检署, 环保署（现环境部）]
+    evidence_shape: OFFICIAL_DOCUMENT
+    result: 司法侦办与行政裁罚；环团+立委首发->媒体跟进->机关核验
+    source_urls: []
+
+  - case_id: HC07
+    title: 学甲枪击案与光电利益关联调查
+    date: '2023-02'
+    category: A05
+    first_release_source: 镜周刊
+    first_release_type: MEDIA
+    amplifiers: [政论节目, 各新闻台]
+    verification_sources: [台南地检署]
+    evidence_shape: INTERNAL_DOCUMENT
+    result: 司法侦办中；媒体独家首发
+    source_urls: []
+
+  - case_id: HC08
+    title: 进口鸡蛋补助与冷链采购案（中央畜产会）
+    date: '2023-09'
+    category: A07
+    first_release_source: 国民党团记者会（凌涛等）
+    first_release_type: POLITICAL_ACTOR
+    amplifiers: [PTT, 政论节目, TVBS, 联合报]
+    verification_sources: [农业部, 台北地检署, 监察院]
+    evidence_shape: PROCUREMENT_FILE
+    result: 监察院纠正/检方侦办；政党记者会首发->媒体放大->机关核验
+    source_urls: []
+
+  - case_id: HC09
+    title: 高端疫苗采购合约争议
+    date: '2021-03'
+    category: A07
+    first_release_source: 国民党立委记者会/网路讨论
+    first_release_type: POLITICAL_ACTOR
+    amplifiers: [PTT, 政论节目]
+    verification_sources: [卫福部, 监察院, 台北地检署]
+    evidence_shape: OFFICIAL_DOCUMENT
+    result: 多项查无不法/部分行政检讨；争议高，首发与核验分离重要
+    source_urls: []
+
+  - case_id: HC10
+    title: 颜宽恒家族土地与建案争议
+    date: '2021-11'
+    category: A04
+    first_release_source: 镜周刊
+    first_release_type: MEDIA
+    amplifiers: [PTT, 政论节目]
+    verification_sources: [台中地检署]
+    evidence_shape: INTERNAL_DOCUMENT
+    result: 起诉（后部分改判）；媒体首发->司法核验
+    source_urls: []
+
+  - case_id: HC11
+    title: 高雄城中城/前镇长案地方工程关联调查
+    date: '2021-10'
+    category: A04
+    first_release_source: 联合报地方线
+    first_release_type: MEDIA
+    amplifiers: [各新闻台]
+    verification_sources: [高雄地检署, 廉政署]
+    evidence_shape: PROCUREMENT_FILE
+    result: 侦办中；地方媒体首发
+    source_urls: []
+
+  - case_id: HC12
+    title: 花莲县长徐榛蔚夫妻工程采购案
+    date: '2022-11'
+    category: A06
+    first_release_source: 镜周刊
+    first_release_type: MEDIA
+    amplifiers: [PTT, 政论节目]
+    verification_sources: [花莲地检署]
+    evidence_shape: MULTI_SOURCE_PACKAGE
+    result: 侦办中；媒体首发
+    source_urls: []
+
+  - case_id: HC13
+    title: 民进党党内初选性平事件（吃案争议）
+    date: '2023-06'
+    category: A11
+    first_release_source: 当事人于 Facebook/Threads 发文
+    first_release_type: SOCIAL_PLATFORM
+    amplifiers: [各新闻台, 政论节目]
+    verification_sources: [民进党性平机制]
+    evidence_shape: CHAT_RECORD
+    result: 党内调查惩处；当事人社媒首发->媒体跟进
+    source_urls: []
+
+  - case_id: HC14
+    title: 高嘉瑜遭施暴事件（私德+刑事）
+    date: '2021-11'
+    category: A13
+    first_release_source: 镜周刊独家（照片与录音）
+    first_release_type: MEDIA
+    amplifiers: [各新闻台, PTT]
+    verification_sources: [台北地检署（起诉）]
+    evidence_shape: PHOTO
+    result: 判刑；媒体独家首发->司法核验
+    source_urls: []
+
+  - case_id: HC15
+    title: 民众党新竹市长任内相关争议（寡妇幼子迁户籍等）
+    date: '2023-01'
+    category: A13
+    first_release_source: 网路/PTT 爆料
+    first_release_type: SOCIAL_PLATFORM
+    amplifiers: [各新闻台, 政论节目]
+    verification_sources: [台北地检署]
+    evidence_shape: CHAT_RECORD
+    result: 后续司法认定与媒体更正并存；PTT 首发需谨慎核验之典型案例
+    source_urls: []
+
+  - case_id: HC16
+    title: 罗智强/张亚中等政治人物论文与学经历争议
+    date: '2022-10'
+    category: A01
+    first_release_source: 徐巧芯/王鸿薇等记者会
+    first_release_type: POLITICAL_ACTOR
+    amplifiers: [PTT, 政论节目]
+    verification_sources: [各校学伦会]
+    evidence_shape: ACADEMIC_DOCUMENT
+    result: 各校处理不一；记者会比对首发->校方核验
+    source_urls: []
+
+  - case_id: HC17
+    title: 赵天麟婚外情曝光
+    date: '2023-10'
+    category: A14
+    first_release_source: 镜周刊（照片）
+    first_release_type: MEDIA
+    amplifiers: [各新闻台, PTT]
+    verification_sources: [当事人声明]
+    evidence_shape: PHOTO
+    result: 当事人退选；媒体照片首发
+    source_urls: []
+
+  - case_id: HC18
+    title: 马文君立委涉潜舰国造泄密疑云
+    date: '2023-10'
+    category: A17
+    first_release_source: 台湾基进/政治人物指控 + 媒体调查
+    first_release_type: POLITICAL_ACTOR
+    amplifiers: [政论节目, PTT]
+    verification_sources: [调查局, 台北地检署, 国防部]
+    evidence_shape: INTERNAL_DOCUMENT
+    result: 检方查无不法签结；高敏感国安指控首发者责任重，需机构核验
+    source_urls: []
+
+  - case_id: HC19
+    title: 镜电视申设争议（NCC 审查）
+    date: '2022-01'
+    category: A18
+    first_release_source: 国民党立委记者会（陈椒华质询跟进）
+    first_release_type: POLITICAL_ACTOR
+    amplifiers: [政论节目]
+    verification_sources: [NCC, 监察院]
+    evidence_shape: OFFICIAL_DOCUMENT
+    result: 监察院纠正；主管机关核验
+    source_urls: []
+
+  - case_id: HC20
+    title: 立委集体受贿案（SOGO 案）
+    date: '2020-08'
+    category: A03
+    first_release_source: 台北地检署（声押）
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [各新闻台]
+    verification_sources: [台北地院]
+    evidence_shape: BANK_RECORD
+    result: 多起判决；司法首发
+    source_urls: []
+
+  - case_id: HC21
+    title: 高雄市议会副议长贿选案
+    date: '2023-01'
+    category: A10
+    first_release_source: 高雄地检署
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [各新闻台]
+    verification_sources: [高雄地院]
+    evidence_shape: OFFICIAL_DOCUMENT
+    result: 起诉判决；司法首发
+    source_urls: []
+
+  - case_id: HC22
+    title: 台南正副议长选举贿选案
+    date: '2023-01'
+    category: A10
+    first_release_source: 台南地检署
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [各新闻台, 政论节目]
+    verification_sources: [台南地院]
+    evidence_shape: OFFICIAL_DOCUMENT
+    result: 起诉；司法首发
+    source_urls: []
+
+  - case_id: HC23
+    title: 基隆市府东岸商场争议（NET 与谢国梁）
+    date: '2024-02'
+    category: A18
+    first_release_source: NET 委任律师记者会
+    first_release_type: OTHER
+    amplifiers: [政论节目, 各新闻台]
+    verification_sources: [基隆地检署, 基隆市府]
+    evidence_shape: CONTRACT
+    result: 行政诉讼与司法侦办并存；契约争议律师首发->司法核验
+    source_urls: []
+
+  - case_id: HC24
+    title: 桃园市议员简志伟涉殡葬业者对价案
+    date: '2024-06'
+    category: A03
+    first_release_source: 桃园地检署
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [各新闻台]
+    verification_sources: [桃园地院]
+    evidence_shape: BANK_RECORD
+    result: 起诉；司法首发
+    source_urls: []
+
+  - case_id: HC25
+    title: 云林县长张丽善胞弟张启盟等违法堆置与农地案
+    date: '2021-11'
+    category: A16
+    first_release_source: 云林地检署（搜索）
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [联合报, 镜周刊跟进]
+    verification_sources: [云林地检署, 云林县政府]
+    evidence_shape: OFFICIAL_DOCUMENT
+    result: 侦办/裁罚；司法启动->媒体跟进
+    source_urls: []
+
+  - case_id: HC26
+    title: 台南市经发局长陈凯凌涉贪案
+    date: '2022-08'
+    category: A03
+    first_release_source: 台南地检署（声押）
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [各新闻台]
+    verification_sources: [台南地院]
+    evidence_shape: BANK_RECORD
+    result: 判刑；司法首发
+    source_urls: []
+
+  - case_id: HC27
+    title: 立委陈欧珀涉 im.B 诈骗集团关系
+    date: '2023-05'
+    category: A15
+    first_release_source: 镜周刊/网路媒体揭露
+    first_release_type: MEDIA
+    amplifiers: [政论节目, 各新闻台]
+    verification_sources: [台北地检署]
+    evidence_shape: MULTI_SOURCE_PACKAGE
+    result: 当事人退选；媒体首发
+    source_urls: []
+
+  - case_id: HC28
+    title: 学甲枪击案（郭再钦等）后续利益调查
+    date: '2023-01'
+    category: A15
+    first_release_source: 台南地检署
+    first_release_type: FORMAL_AUTHORITY
+    amplifiers: [各新闻台]
+    verification_sources: [台南地院]
+    evidence_shape: MULTI_SOURCE_PACKAGE
+    result: 起诉；司法首发
+    source_urls: []
+
+  - case_id: HC29
+    title: 论文代写/挂名产业链调查（多所大学）
+    date: '2022-03'
+    category: A01
+    first_release_source: 镜周刊
+    first_release_type: MEDIA
+    amplifiers: [公视跟进]
+    verification_sources: [教育部, 各校学伦会]
+    evidence_shape: INTERNAL_DOCUMENT
+    result: 教育部通案检讨；媒体调查首发
+    source_urls: []
+
+  - case_id: HC30
+    title: 军中霸凌/性平申诉与吃案案件连环揭露
+    date: '2023-03'
+    category: A12
+    first_release_source: 公视（调查报道）
+    first_release_type: MEDIA
+    amplifiers: [各新闻台]
+    verification_sources: [国防部, 监察院]
+    evidence_shape: AUDIO
+    result: 制度性检讨；公视制度调查首发
+    source_urls: []
