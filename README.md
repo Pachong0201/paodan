@@ -40,6 +40,7 @@ S/A/B/C/D 优先级队列、记者摘要与核查清单；**V2 在 S/A/B 线索�
 → JSONL/CSV 报告 + SQLite 归档(release_recommendations / named_channel_recommendations)
 → 【V3.1 Excel 台账：S/A/B 或 >=60 → 去重 → append/update → important_email_register.xlsx】
 → 【V3.2 Review Queue：S/A/B 或 >=60 → 去重 → 复制 .eml + .review.json 到 data/review_queue/<S/A/B>/】
+→ 【V4 治理民生投诉（G01-G12 并行）：G-H/M/C/E/X + GP01-GP10 + GN01-GN04 + GovernanceComplaintScorer → 双轨评分 → S/A/B/C/D → Excel/Review Queue】
 ```
 
 ## 安装与运行

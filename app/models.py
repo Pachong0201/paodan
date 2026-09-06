@@ -213,6 +213,13 @@ class ScreeningRecord:
     release_recommendation: Optional[dict] = None
     # V3 具名渠道推荐（可选，S/A/B 经 Named Channel Advisor 后填充）
     named_channel_recommendation: Optional[dict] = None
+    # V4 治理民生投诉（G01-G12 并行，不影响 A01-A18 语义）
+    governance_categories: list = field(default_factory=list)
+    governance_keywords: dict = field(default_factory=dict)
+    governance_patterns: list = field(default_factory=list)
+    governance_score: float = 0.0
+    governance_priority: str = ""
+    governance_dims: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         d = {
@@ -243,6 +250,20 @@ class ScreeningRecord:
             d["release_recommendation"] = self.release_recommendation
         if self.named_channel_recommendation is not None:
             d["named_channel_recommendation"] = self.named_channel_recommendation
+        # V4 governance block（并行输出，不影响原 rule_score/final_score 语义）
+        if self.governance_categories or self.governance_score:
+            d["governance_categories"] = list(self.governance_categories)
+            gov_kw = {}
+            for k, v in (self.governance_keywords or {}).items():
+                lst = []
+                for h in v:
+                    lst.append(h.to_dict() if hasattr(h, "to_dict") else h)
+                gov_kw[k] = lst
+            d["governance_keywords"] = gov_kw
+            d["governance_patterns"] = [p.to_dict() if hasattr(p, "to_dict") else p for p in (self.governance_patterns or [])]
+            d["governance_score"] = float(self.governance_score or 0)
+            d["governance_priority"] = self.governance_priority or ""
+            d["governance_dims"] = dict(self.governance_dims or {})
         return d
 
     def to_jsonl_line(self) -> str:

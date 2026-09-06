@@ -1,0 +1,61 @@
+version: '1.0'
+description: V4 治理投诉 Negative GN01-GN04
+downgrade_rules:
+  - id: GN01
+    condition: 纯情绪无具体事件时间地点损失证据
+    score_delta: -40
+    max_score: 30
+    trigger_terms:
+      - 烂政府
+      - 垃圾政府
+      - 太扯
+      - 傻眼
+      - 气死
+      - 荒谬
+      - 政府很烂
+      - 无能
+  - id: GN02
+    condition: 已合理解释如医疗检伤合理
+    score_delta: -30
+    max_score: 40
+    trigger_terms:
+      - 检伤分类
+      - 重症优先
+      - 依检伤顺序
+      - 病情较轻
+      - 病人拒绝转院
+      - 检伤第5级
+  - id: GN03
+    condition: 正常行政程序如招标市场调查合法补件依法通知
+    score_delta: -25
+    max_score: 45
+    trigger_terms:
+      - 招标市场调查
+      - 合法补件
+      - 依法通知
+      - 依法行政
+      - 计划性停电
+      - 正常维修
+  - id: GN04
+    condition: 个案已解决且无群体制度性问题
+    score_delta: -30
+    max_score: 40
+    trigger_terms:
+      - 问题已修复
+      - 已退款
+      - 已补发
+      - 已完成处理
+      - 已恢复
+global_GX_terms:
+  - 检伤分类
+  - 重症优先
+  - 依检伤顺序
+  - 病情较轻
+  - 病人拒绝转院
+  - 招标市场调查
+  - 合法补件
+  - 依法通知
+  - 问题已修复
+  - 已退款
+  - 已补发
+  - 已完成处理

@@ -16,6 +16,14 @@ from ..preprocessing.normalization import Normalizer
 from ..rules.config_loader import RuleConfig
 from ..rules.rule_engine import RuleEngine
 from ..scoring.scorer import FinalScorer
+try:
+    from ..governance.config_loader import GovernanceConfig
+    from ..governance.engine import GovernanceEngine
+    _GOV_AVAILABLE = True
+except Exception:
+    GovernanceConfig = None
+    GovernanceEngine = None
+    _GOV_AVAILABLE = False
 from ..scoring.known_news_matcher import KnownNewsMatcher
 from ..storage.database import Database
 from ..storage.repository import Repository
@@ -76,6 +84,23 @@ class ScreeningPipeline:
         self.allow_llm = allow_llm and LLM_ENABLED
         self.release_advisor = release_advisor
         self.named_advisor = named_advisor
+        # V4 governance engine (parallel, never break V1-V3)
+        self.gov_engine = None
+        try:
+            if _GOV_AVAILABLE:
+                import pathlib as _pl
+                gov_base = None
+                try:
+                    _cfg_dir = getattr(config, "directory", None)
+                    if _cfg_dir:
+                        gov_base = _pl.Path(_cfg_dir)
+                except Exception:
+                    gov_base = None
+                from app.config import NEWS_SIGNAL_DIR as _NSD
+                self.gov_engine = GovernanceEngine(gov_base or _NSD)
+        except Exception as _e:
+            logger.warning("Governance engine init failed (V1-V3 unaffected): %s", _e)
+            self.gov_engine = None
         # S/A/B 进入首发渠道推荐的分数门槛（默认 60，可由 advisor.min_score 覆盖）
         self.release_advisor_min_score = 60.0
         if self.release_advisor is not None and getattr(self.release_advisor, "min_score", None):
@@ -169,6 +194,24 @@ class ScreeningPipeline:
 
         rec = ScreeningRecord(email_id=doc.email_id, email=doc, rule=rr, llm=llm,
                               score=fs, known_news=known)
+        # V4 governance parallel (never affect rule_score; only upgrade final when G stronger)
+        try:
+            if self.gov_engine is not None:
+                has_att = bool(doc.attachments)
+                gov = self.gov_engine.evaluate(combined, has_attachment=has_att)
+                rec.governance_categories = list(gov.categories)
+                rec.governance_keywords = dict(gov.keywords)
+                rec.governance_patterns = list(gov.patterns)
+                rec.governance_score = float(gov.score)
+                rec.governance_priority = str(gov.priority)
+                rec.governance_dims = dict(gov.dims)
+                # 融合：保留两套分类，仅升级 final（不降级，不改 rule_score）
+                _order = {"S": 4, "A": 3, "B": 2, "C": 1, "D": 0}
+                if gov.categories and _order.get(gov.priority, 0) > _order.get(fs.priority, 0):
+                    fs.final_score = float(max(float(fs.final_score), float(gov.score)))
+                    fs.priority = str(gov.priority)
+        except Exception as _e:
+            logger.warning("Governance evaluate failed (V1-V3 unaffected): %s", _e)
         rec.summary_zh = _summary_for(rec, rr, llm, fs)
         rec.verification_targets = llm.verification_targets or []
         if fs.priority in ("S", "A", "B") and not rec.verification_targets:

@@ -68,6 +68,8 @@ HEADERS: List[str] = [
     "责任编辑",
     "人工标签",
     "记者备注",
+    "治理民生类别",
+    "治理民生评分",
 ]
 
 MANUAL_FIELDS: List[str] = ["处理状态", "责任编辑", "人工标签", "记者备注"]
@@ -134,6 +136,8 @@ COLUMN_WIDTHS: Dict[str, float] = {
     "责任编辑": 12,
     "人工标签": 16,
     "记者备注": 36,
+    "治理民生类别": 28,
+    "治理民生评分": 12,
     REVIEW_PATH_FIELD: 44,
     REVIEW_STATUS_FIELD: 12,
 }
@@ -809,6 +813,8 @@ class ImportantEmailRegister:
             "责任编辑": MANUAL_DEFAULTS["责任编辑"],
             "人工标签": MANUAL_DEFAULTS["人工标签"],
             "记者备注": MANUAL_DEFAULTS["记者备注"],
+            "治理民生类别": _join_list(_get(record, "governance_categories", []) or []),
+            "治理民生评分": str(_get(record, "governance_score", "") or ""),
         }
         # 保证所有 HEADERS 都有键
         for h in HEADERS:

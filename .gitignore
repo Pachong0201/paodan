@@ -36,6 +36,7 @@ data/processed/
 data/user_uploads/
 data/inbox/*
 !data/inbox/.gitkeep
+!data/inbox/news_engine_real_case_test_emails/
 data/**/*.attachments_cache/
 # 保留空目录结构
 !data/known_cases.jsonl
