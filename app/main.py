@@ -80,9 +80,9 @@ def _print_record(rec, verbose: bool = False):
 
 
 def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
-    """V4.1 生产自检：规则包 / Governance / Privacy / DB Schema / Output Security。"""
+    """V4.1.1 生产自检：规则包 / Governance / Privacy / DB Schema / Output Security / Analysis。"""
     print("=" * 64)
-    print("V4.1 系统自检")
+    print("V4.1.1 系统自检")
     print("=" * 64)
     failures: list[str] = []
     cfg_dir = Path(config_dir) if config_dir else Path(getattr(cfg, "directory", NEWS_SIGNAL_DIR) or NEWS_SIGNAL_DIR)
@@ -127,6 +127,8 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
         print("  [OK] no ALLOW_RAW_EXTERNAL_LLM bypass")
         if policy.privacy_level == "OFF":
             print("  [WARN] privacy_level=OFF 仍不允许 external raw string")
+        if policy.privacy_level == "REDACTED_SNIPPETS":
+            print("  [WARN] REDACTED_SNIPPETS 为受限模式；生产推荐 STRUCTURED_ONLY")
         if not policy.allowed_hosts:
             failures.append("security_allowlist")
     except Exception as exc:  # noqa: BLE001
@@ -153,6 +155,86 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"  [FAIL] database schema: {exc}")
         failures.append("database")
+
+
+    # ---------- Analysis Versioning ----------
+    print("\n[Analysis Versioning]")
+    try:
+        from .storage.migrations import PIPELINE_VERSION
+        from .storage.database import Database as _DB
+        _db = _DB(DB_PATH)
+        _state = _db.schema_state()
+        cols = {r[1] for r in _db.query("PRAGMA table_info(analysis_runs)")}
+        required_cols = {"pipeline_version", "political_rule_pack_hash",
+                         "governance_rule_pack_hash", "scoring_rule_hash", "prompt_hash",
+                         "llm_mode", "llm_provider", "llm_model",
+                         "release_rule_hash", "named_rule_hash", "channel_entity_hash"}
+        missing = sorted(required_cols - cols)
+        print(f"  [OK] pipeline_version: {PIPELINE_VERSION}")
+        print(f"  [OK] schema_version: {_state.get('schema_version')}")
+        print(f"  [OK] analysis hash fields: {len(required_cols) - len(missing)}/{len(required_cols)}")
+        if missing:
+            print(f"  [FAIL] missing analysis_runs columns: {missing}")
+            failures.append("analysis_columns")
+        _db.close()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] analysis versioning: {exc}")
+        failures.append("analysis_versioning")
+
+    # ---------- Unified Signal Config ----------
+    print("\n[Unified Signal Config]")
+    try:
+        from .signals.merger import SignalMerger, UnifiedFinalScorer
+        ucfg = cfg_dir / "unified_signals.yaml"
+        merger = SignalMerger(config_path=ucfg if ucfg.exists() else None)
+        scorer = UnifiedFinalScorer(thresholds=merger.thresholds)
+        if merger.thresholds != scorer.thresholds:
+            print("  [FAIL] SignalMerger / UnifiedFinalScorer thresholds differ")
+            failures.append("unified_thresholds")
+        else:
+            print(f"  [OK] unified thresholds: political={merger.thresholds.get('political_threshold')} "
+                  f"governance={merger.thresholds.get('governance_threshold')} "
+                  f"mixed_bonus={merger.thresholds.get('mixed_bonus')}")
+            print("  [OK] SignalMerger == UnifiedFinalScorer threshold source")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] unified signal config: {exc}")
+        failures.append("unified_config")
+
+    # ---------- V3 Candidate Pool ----------
+    print("\n[V3 Candidate Pool]")
+    try:
+        from .named_channel.entity_loader import ChannelEntityLoader
+        from .named_channel.candidate_engine import NamedChannelEngine
+        loader = ChannelEntityLoader()
+        engine = NamedChannelEngine(loader)
+        entity_ids = set(loader.entities.keys())
+        rule_ids = set(loader.rules.keys())
+        overlap = sorted(entity_ids & rule_ids)
+        print(f"  [OK] entity ids: {len(entity_ids)}  rule ids: {len(rule_ids)}")
+        if overlap:
+            print(f"  [FAIL] entity id / rule id overlap: {overlap[:5]}")
+            failures.append("v3_candidate_pool")
+        else:
+            print("  [OK] candidate pool ids are entity ids (no NC/RR/category collision)")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] V3 candidate pool sanity: {exc}")
+        failures.append("v3_candidate_pool")
+
+    # ---------- Runtime Environment ----------
+    print("\n[Runtime Environment]")
+    try:
+        import platform
+        import sys as _sys
+        from .parsers.attachment_parser import ocr_cache_version
+        ocr_ver = ocr_cache_version()
+        print(f"  [OK] platform: {platform.platform()}")
+        print(f"  [OK] python: {_sys.version.split()[0]}")
+        available = ocr_ver.startswith("tesseract:")
+        print(f"  [{'OK' if available else 'WARN'}] OCR availability: "
+              f"{'available' if available else 'unavailable'}")
+        print(f"  [{'OK' if available else 'WARN'}] OCR cache version: {ocr_ver}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [WARN] runtime environment check: {exc}")
 
     # ---------- Output Security / config ----------
     print("\n[Output Security]")

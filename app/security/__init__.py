@@ -1,4 +1,4 @@
-"""V4.1 External LLM Privacy Gateway.
+"""V4.1.1 External LLM Privacy Gateway.
 
 本包是 External LLM 唯一允许的出口层：
 业务层只构造 :class:`SafeLLMPayload`，由 ``OutboundGuard`` 做最终 HTTP body 扫描；

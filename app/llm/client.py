@@ -11,7 +11,7 @@ import requests
 
 from ..security.audit import SecurityAuditLogger
 from ..security.classifier import Destination, DestinationClassifier
-from ..security.models import SafeLLMPayload, SecurityBlockedError
+from ..security.models import GuardResult, SafeLLMPayload, SecurityBlockedError
 from ..security.outbound_guard import OutboundGuard
 from ..security.payload_builder import ensure_safe_payload
 from ..security.policy import SecurityPolicy, load_security_policy
@@ -140,8 +140,24 @@ class LLMClient:
                     payload_size=len(json.dumps(body, ensure_ascii=False)),
                     result="blocked", reason_codes=["EXTERNAL_RAW_BODY_FORBIDDEN"])
                 raise SecurityBlockedError("external raw body blocked")
-            final_json = json.dumps(body, ensure_ascii=False, sort_keys=True)
-            result = self.guard.final_scan(final_json)
+            # 系统 Prompt 是本系统可信指令，可能包含公开示例人名（如渠道顾问 Prompt）；
+            # 内容扫描只针对 user/SafePayload 与最终 HTTP body 的非 system 部分。
+            scan_body = dict(body)
+            scan_body["messages"] = [m for m in (body.get("messages") or [])
+                                     if str(m.get("role") or "") != "system"]
+            final_json = json.dumps(scan_body, ensure_ascii=False, sort_keys=True)
+            # 用户内容扫描允许公开候选实体/历史案例中的公开人名，但仍扫描
+            # private canary、Message-ID、路径、API key、账号、电话、email、地址等。
+            user_result = self.guard.check(final_json, redactor=self.guard.system_redactor)
+            # 全量 body 再扫一次，但系统 Prompt 内容排除保守中文姓名规则。
+            full_json = json.dumps(body, ensure_ascii=False, sort_keys=True)
+            system_result = self.guard.check(full_json, redactor=self.guard.system_redactor)
+            result = GuardResult(
+                allowed=user_result.allowed and system_result.allowed,
+                reason_codes=list(dict.fromkeys(user_result.reason_codes + system_result.reason_codes)),
+                redaction_count=user_result.redaction_count + system_result.redaction_count,
+                payload_size=max(user_result.payload_size, system_result.payload_size),
+                findings=(user_result.findings + system_result.findings)[:100])
             if not result.allowed:
                 self.audit.log(
                     event="external_payload_blocked", purpose=safe_payload.purpose,

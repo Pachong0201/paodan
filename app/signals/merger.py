@@ -148,12 +148,17 @@ class SignalMerger:
         # 无有效类别时不得仅因融合后的分数误判政治轨；返回 NONE 由最终评分兜底。
         return Track.NONE, None
 
-    @staticmethod
-    def _confidence(pol_score: float, gov_score: float, primary: Track) -> float:
+    def _confidence(self, pol_score: float, gov_score: float, primary: Track) -> float:
         if primary == Track.NONE:
             return 0.0
         if primary == Track.MIXED:
-            return round(min(1.0, (float(pol_score or 0) + float(gov_score or 0)) / 200.0 + 0.1), 2)
+            p_strong = float(pol_score or 0) >= float(
+                self.thresholds.get("strong_political_threshold", 60))
+            g_strong = float(gov_score or 0) >= float(
+                self.thresholds.get("strong_governance_threshold", 60))
+            strong_bonus = 0.05 * int(p_strong) + 0.05 * int(g_strong)
+            return round(min(1.0, (float(pol_score or 0) + float(gov_score or 0)) / 200.0
+                             + 0.1 + strong_bonus), 2)
         return round(min(1.0, max(float(pol_score or 0), float(gov_score or 0)) / 100.0), 2)
 
     @staticmethod
@@ -252,9 +257,13 @@ class UnifiedFinalScorer:
     Rule C：Mixed 案件不丢弃任一轨道（由 UnifiedSignalSet 保留两轨类别/分数）。
     """
 
-    def __init__(self, thresholds: Optional[Dict[str, float]] = None):
-        self.thresholds = dict(DEFAULT_THRESHOLDS)
-        if thresholds:
+    def __init__(self, thresholds: Optional[Dict[str, float]] = None,
+                 config_path: Optional[Path | str] = None):
+        if thresholds is None:
+            # 与 SignalMerger 共用同一 YAML 配置源。
+            self.thresholds = load_unified_thresholds(config_path)
+        else:
+            self.thresholds = dict(DEFAULT_THRESHOLDS)
             self.thresholds.update(thresholds)
 
     def fuse(self, political_final: float, governance_final: float,

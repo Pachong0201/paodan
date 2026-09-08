@@ -1,4 +1,5 @@
-# V4.1 External LLM Privacy Gateway 默认配置
+# V4.1.1 External LLM Privacy Gateway 默认配置
+# 生产推荐 STRUCTURED_ONLY；REDACTED_SNIPPETS 仅受限使用。
 # 优先级：代码默认 < 本 YAML < ENV < CLI（CLI 由 main 覆盖）
 security:
   external_llm:

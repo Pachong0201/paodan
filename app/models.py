@@ -242,7 +242,7 @@ class ScreeningRecord:
     verification_targets: list = field(default_factory=list)
     known_news: Optional[dict] = None
     error: str = ""
-    schema_version: str = "4.1"
+    schema_version: str = "4.1.1"
     # V4.1 统一双轨信号（UnifiedSignalSet；Pipeline 在 V1+V4 后填充）
     unified_signals: Optional[object] = None
     # V2 首发渠道推荐（可选，S/A/B 经 Release Advisor 后填充）

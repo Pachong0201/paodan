@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 from ..config import CONFIG_DIR, LLM_API_KEY, LLM_BASE_URL, LLM_ENABLED, LLM_MODE, \
     LLM_MODEL, LLM_TIMEOUT
 from ..llm.client import LLMClient, LLMError
+from ..security.models import SecurityBlockedError
 from .candidate_engine import NamedChannelEngine, detect_locations
 from .entity_loader import ChannelEntityLoader
 from .models import NamedChannelHit, NamedChannelRecommendation, OUTPUT_GROUPS
@@ -134,6 +135,9 @@ class NamedChannelAdvisor:
                 self._llm_rerank(rec, ranked, feats, rel, text_blob)
                 rec.source = "rule+llm"
                 rec.llm_status = "ok"
+            except SecurityBlockedError as e:
+                logger.warning("具名渠道 External LLM 隐私阻断，回退规则结果: %s", e)
+                rec.llm_status = "blocked"
             except Exception as e:  # noqa: BLE001
                 logger.warning("具名渠道 LLM 调用失败，回退规则结果: %s", e)
                 rec.llm_status = "failed"
@@ -322,7 +326,14 @@ class NamedChannelAdvisor:
                 out = self.client.chat_json(self._prompt, user, retries=1)
         except Exception:  # noqa: BLE001
             raise
-        ok, cleaned, errors = validate_llm_output(out, set(rec.rule_hits))
+        # 真实候选池是实体 ID，不是 NC rule ID / RR route ID / category ID。
+        candidate_pool_ids = {
+            str(getattr(h, "entity_id", "") or "")
+            for items in ranked.values()
+            for h in items
+            if getattr(h, "entity_id", "")
+        }
+        ok, cleaned, errors = validate_llm_output(out, candidate_pool_ids)
         if not ok:
             raise LLMError(f"具名渠道输出校验失败: {errors[:5]}")
         # LLM 只调整顺序与 fit_score 微调与 reason（在候选池内）

@@ -14,13 +14,13 @@ from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
 
 from ..config import (DATA_DIR, LLM_BASE_URL, LLM_ENABLED, LLM_MODEL, PROCESSED_DIR,
-                      RULE_TRIGGER_EXTRA, resolve_llm_trigger_score)
+                      resolve_llm_trigger_score, resolve_rule_trigger_extra)
 from ..governance.verification import verification_targets_for
 from ..llm.screener import LLMScreener
 from ..models import (AttachmentDoc, EmailDocument, FinalScore, LLMResult,
                       RuleResult, ScreeningRecord)
 from ..parsers import parse_attachment, parse_eml
-from ..parsers.attachment_parser import PARSER_VERSION, OCR_VERSION, sha256_file
+from ..parsers.attachment_parser import (PARSER_VERSION, ocr_cache_version, sha256_file)
 from ..preprocessing.normalization import Normalizer
 from ..rules.config_loader import RuleConfig
 from ..rules.rule_engine import RuleEngine
@@ -37,6 +37,7 @@ from ..scoring.known_news_matcher import KnownNewsMatcher
 from ..security.payload_builder import SafePayloadBuilder
 from ..signals.merger import SignalMerger, UnifiedFinalScorer
 from ..storage.database import Database
+from ..storage.migrations import PIPELINE_VERSION
 from ..storage.repository import Repository
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,36 @@ def _prompt_hash(config_dir: Optional[Path]) -> str:
     if not config_dir:
         return ""
     p = config_dir / "llm_email_screening_prompt.md"
+    return _sha256_text(p.read_text(encoding="utf-8")) if p.exists() else ""
+
+
+def _config_root(config_dir: Optional[Path]) -> Optional[Path]:
+    if not config_dir:
+        return None
+    return config_dir.parent if config_dir.name == "news_signal" else config_dir
+
+
+def _release_rule_hash(config_dir: Optional[Path]) -> str:
+    root = _config_root(config_dir)
+    if not root:
+        return ""
+    return _hash_files([root / n for n in ("release_route_rules.yaml", "release_routes.yaml")
+                        if (root / n).exists()])
+
+
+def _named_rule_hash(config_dir: Optional[Path]) -> str:
+    root = _config_root(config_dir)
+    if not root:
+        return ""
+    return _hash_files([root / n for n in ("named_channel_rules.yaml", "channel_historical_cases.yaml")
+                        if (root / n).exists()])
+
+
+def _channel_entity_hash(config_dir: Optional[Path]) -> str:
+    root = _config_root(config_dir)
+    if not root:
+        return ""
+    p = root / "channel_entities.yaml"
     return _sha256_text(p.read_text(encoding="utf-8")) if p.exists() else ""
 
 
@@ -177,22 +208,34 @@ class ScreeningPipeline:
         self.scorer = scorer or FinalScorer(config, self.known_matcher)
         self.repo = Repository(db) if db is not None else None
         self.ocr_enabled = ocr_enabled
+        self.ocr_cache_version = ocr_cache_version(ocr_enabled)
         self.llm_trigger_score = resolve_llm_trigger_score(llm_trigger_score)
+        self.rule_trigger_extra = resolve_rule_trigger_extra()
+        self.llm_model = os.getenv("LLM_MODEL", LLM_MODEL)
+        self.llm_base_url = os.getenv("LLM_BASE_URL", LLM_BASE_URL)
         self.allow_llm = allow_llm and LLM_ENABLED
         self.release_advisor = release_advisor
         self.named_advisor = named_advisor
         self.reprocess = bool(reprocess)
         self.rescore = bool(rescore)
         self.reanalyze = bool(reanalyze)
-        self.merger = SignalMerger()
-        self.unified_scorer = UnifiedFinalScorer()
         # Rule / prompt hashes for analysis_runs / stale detection
         cfg_dir = getattr(config, "directory", None)
         self.cfg_dir = Path(cfg_dir) if cfg_dir else None
+        self.pipeline_version = PIPELINE_VERSION
+        # Track 判断与 Final Fusion 必须共用同一套阈值源。
+        unified_config = (self.cfg_dir / "unified_signals.yaml") if self.cfg_dir else None
+        self.merger = SignalMerger(config_path=unified_config)
+        self.unified_scorer = UnifiedFinalScorer(thresholds=self.merger.thresholds)
+        # 明确共享同一阈值对象，避免后续任何一处被单独修改。
+        self.unified_scorer.thresholds = self.merger.thresholds
         self.political_rule_pack_hash = _rule_pack_hash(self.cfg_dir)
         self.governance_rule_pack_hash = _governance_rule_pack_hash(self.cfg_dir)
         self.scoring_rule_hash = _scoring_rule_hash(self.cfg_dir)
         self.prompt_hash = _prompt_hash(self.cfg_dir)
+        self.release_rule_hash = _release_rule_hash(self.cfg_dir)
+        self.named_rule_hash = _named_rule_hash(self.cfg_dir)
+        self.channel_entity_hash = _channel_entity_hash(self.cfg_dir)
         # Governance 配置存在但非法：生产启动 FAIL；只有 GOVERNANCE_ENABLED=0 才显式跳过。
         self.gov_engine = None
         gov_enabled = os.getenv("GOVERNANCE_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
@@ -226,18 +269,32 @@ class ScreeningPipeline:
         # --reprocess/--rescore/--reanalyze 都允许重新生成 analysis_run；
         # parse cache 仍会被复用，避免重复 OCR。
         force = bool(reprocess or self.reprocess or self.rescore or self.reanalyze)
+        reload_components = False
         if self.repo is not None:
             duplicate = self.repo.is_duplicate(doc)
             if duplicate and not force:
+                hashes = self._compute_hashes()
                 stale = self.repo.analysis_is_stale(
-                    doc.email_id, self.political_rule_pack_hash,
-                    self.governance_rule_pack_hash, self.scoring_rule_hash, self.prompt_hash)
+                    doc.email_id, hashes["political_rule_pack_hash"],
+                    hashes["governance_rule_pack_hash"], hashes["scoring_rule_hash"],
+                    hashes["prompt_hash"],
+                    pipeline_version=self.pipeline_version,
+                    llm_mode=self.llm_screener.mode,
+                    llm_provider=self._llm_provider(),
+                    llm_model=self.llm_model,
+                    release_rule_hash=hashes["release_rule_hash"],
+                    named_rule_hash=hashes["named_rule_hash"],
+                    channel_entity_hash=hashes["channel_entity_hash"])
                 if not stale:
                     logger.info("跳过重复且 analysis up-to-date: %s (%s)", doc.subject, doc.email_id)
                     return None
                 logger.info("邮件已导入但 analysis stale，自动重新分析: %s", doc.email_id)
+                reload_components = True
             if duplicate and force:
                 logger.info("强制重新分析 (reprocess/rescore/reanalyze): %s", doc.email_id)
+                reload_components = True
+        if reload_components or force:
+            self._reload_analysis_components()
         return self._process_document(doc)
 
     # ------------------------------------------------------------------
@@ -255,7 +312,7 @@ class ScreeningPipeline:
             att.source_sha256 = source_sha
             # Parse Cache key 必须稳定：parser/ocr 版本由当前配置决定，而不是由本次是否触发 OCR 决定。
             att.parser_version = PARSER_VERSION
-            att.ocr_version = OCR_VERSION if self.ocr_enabled else "none"
+            att.ocr_version = self.ocr_cache_version
             cache_hit = None
             if self.repo is not None:
                 cache_hit = self.repo.lookup_attachment_parse_cache(
@@ -281,7 +338,7 @@ class ScreeningPipeline:
                     att.text_sha256 = parsed.text_sha256
                     att.content_hash = parsed.content_hash
                     att.parser_version = PARSER_VERSION
-                    att.ocr_version = OCR_VERSION if self.ocr_enabled else "none"
+                    att.ocr_version = self.ocr_cache_version
                     att.ocr_used = parsed.ocr_used
                     if self.repo is not None:
                         self.repo.save_attachment_parse_cache(att)
@@ -413,18 +470,21 @@ class ScreeningPipeline:
         # 持久化：整封邮件一个业务事务，任一 save 抛异常则 rollback。
         if self.repo is not None:
             try:
+                hashes = self._compute_hashes()
                 with self.repo.db.transaction():
                     run_id = self.repo.start_analysis_run(
                         doc.email_id,
-                        pipeline_version="4.1",
-                        political_rule_pack_hash=self.political_rule_pack_hash,
-                        governance_rule_pack_hash=self.governance_rule_pack_hash,
-                        scoring_rule_hash=self.scoring_rule_hash,
-                        prompt_hash=self.prompt_hash,
+                        pipeline_version=self.pipeline_version,
+                        political_rule_pack_hash=hashes["political_rule_pack_hash"],
+                        governance_rule_pack_hash=hashes["governance_rule_pack_hash"],
+                        scoring_rule_hash=hashes["scoring_rule_hash"],
+                        prompt_hash=hashes["prompt_hash"],
                         llm_mode=self.llm_screener.mode,
-                        llm_provider=("template" if self.llm_screener.mode != "api"
-                                      else (urlparse(LLM_BASE_URL or "").hostname or "")),
-                        llm_model=LLM_MODEL)
+                        llm_provider=self._llm_provider(),
+                        llm_model=self.llm_model,
+                        release_rule_hash=hashes["release_rule_hash"],
+                        named_rule_hash=hashes["named_rule_hash"],
+                        channel_entity_hash=hashes["channel_entity_hash"])
                     self.repo.save_email(doc, force=True)
                     if gov is not None:
                         self.repo.save_governance(doc.email_id, gov)
@@ -445,6 +505,61 @@ class ScreeningPipeline:
                 logger.error("落库失败并已 rollback %s: %s", doc.email_id, e)
                 raise
         return rec
+
+    # ------------------------------------------------------------------
+    def _compute_hashes(self) -> Dict[str, str]:
+        """每次 stale 判断/analysis_run 都重新读取配置，避免同一进程内规则更新被旧 hash 挡住。"""
+        return {
+            "political_rule_pack_hash": _rule_pack_hash(self.cfg_dir),
+            "governance_rule_pack_hash": _governance_rule_pack_hash(self.cfg_dir),
+            "scoring_rule_hash": _scoring_rule_hash(self.cfg_dir),
+            "prompt_hash": _prompt_hash(self.cfg_dir),
+            "release_rule_hash": _release_rule_hash(self.cfg_dir),
+            "named_rule_hash": _named_rule_hash(self.cfg_dir),
+            "channel_entity_hash": _channel_entity_hash(self.cfg_dir),
+        }
+
+    def _reload_analysis_components(self) -> None:
+        """reprocess/stale 时重新加载规则、Prompt、V2/V3 规则，避免用旧内存对象重新分析。"""
+        cfg_dir = self.cfg_dir
+        if not cfg_dir:
+            return
+        try:
+            self.config = RuleConfig(cfg_dir).load_all()
+            self.rule_engine = RuleEngine(self.config)
+            self.scorer = FinalScorer(self.config, self.known_matcher)
+            self.llm_screener.rule_config = self.config
+            self.llm_screener._prompt = self.config.llm_prompt
+            # Governance
+            gov_enabled = os.getenv("GOVERNANCE_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
+            if gov_enabled and _GOV_AVAILABLE:
+                self.gov_engine = GovernanceEngine(GovernanceConfig(cfg_dir).load_all())
+            # V2
+            if self.release_advisor is not None:
+                from ..release_advisor.llm_advisor import ReleaseAdvisor
+                mode = getattr(self.release_advisor, "mode", getattr(self.llm_screener, "mode", "template"))
+                allow = bool(getattr(self.release_advisor, "allow_llm", True))
+                min_score = getattr(self.release_advisor, "min_score", None)
+                self.release_advisor = ReleaseAdvisor(self.config, mode=mode,
+                                                      allow_llm=allow, min_score=min_score)
+                self.release_advisor_min_score = float(getattr(self.release_advisor, "min_score", 60.0) or 60.0)
+            # V3
+            if self.named_advisor is not None:
+                from ..named_channel.advisor import NamedChannelAdvisor
+                mode = getattr(self.named_advisor, "mode", getattr(self.llm_screener, "mode", "template"))
+                allow = bool(getattr(self.named_advisor, "allow_llm", True))
+                self.named_advisor = NamedChannelAdvisor(mode=mode, allow_llm=allow)
+            logger.info("已重新加载规则/Prompt/V2/V3 配置用于 stale/reprocess")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("重新加载分析配置失败，继续使用当前内存配置: %s", exc)
+
+    def _llm_provider(self) -> str:
+        if self.llm_screener.mode != "api":
+            return "template"
+        try:
+            return urlparse(self.llm_base_url or "").hostname or ""
+        except Exception:  # noqa: BLE001
+            return ""
 
     # ------------------------------------------------------------------
     _PERSONAL_SENDERS = ("citiccard.com", "cmbchina.com", "ccb.com", "icbc.com.cn", "abchina.com",
@@ -501,20 +616,34 @@ class ScreeningPipeline:
     # ------------------------------------------------------------------
     def _maybe_llm(self, doc: EmailDocument, rr: RuleResult, unified=None,
                    governance=None, known_news=None) -> Optional[LLMResult]:
-        """绝对阈值：rule_score < LLM_TRIGGER_SCORE 不得触发 LLM。
+        """LLM 触发语义：
 
-        Extra 触发条件只在已达到绝对阈值后作为补充说明，避免 50 分邮件因 pattern
-        被送外部模型。
+        A. rule_score >= LLM_TRIGGER_SCORE
+        OR
+        B. RULE_TRIGGER_EXTRA=true 且命中高价值 Pattern
+        OR
+        C. RULE_TRIGGER_EXTRA=true 且 E 类证据 + 明确目标人物/机构 + 具体金额
+
+        External 仍只发送 SafePayload，因此 Extra 触发不会引入 raw data 泄露。
         """
-        if rr.rule_score < self.llm_trigger_score:
-            return None
-        reason = f"rule_score={rr.rule_score}>={self.llm_trigger_score}"
-        if RULE_TRIGGER_EXTRA:
-            hp = [p for p in rr.matched_patterns if p.pattern_id not in ("P20",) and p.pattern_score >= 70]
+        trigger = False
+        reason = ""
+        if rr.rule_score >= self.llm_trigger_score:
+            trigger = True
+            reason = f"rule_score={rr.rule_score}>={self.llm_trigger_score}"
+        elif self.rule_trigger_extra:
+            hp = [p for p in rr.matched_patterns
+                  if p.pattern_id not in ("P20",) and p.pattern_score >= 70]
             if hp:
-                reason += f";高价值Pattern {hp[0].pattern_id}"
-            elif rr.matched_keywords.get("E") and (rr.target_persons_found or rr.matched_keywords.get("C")) and rr.money:
-                reason += ";E类证据+目标+具体金额"
+                trigger = True
+                reason = f"extra:高价值Pattern {hp[0].pattern_id}"
+            else:
+                has_target = bool(rr.target_persons_found or rr.target_orgs_found)
+                if rr.matched_keywords.get("E") and has_target and rr.money:
+                    trigger = True
+                    reason = "extra:E类证据+目标+具体金额"
+        if not trigger:
+            return None
         logger.info("触发 LLM (%s): %s", reason, doc.subject)
         if not self.allow_llm:
             return None

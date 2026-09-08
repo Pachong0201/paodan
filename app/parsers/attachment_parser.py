@@ -21,7 +21,47 @@ from ..preprocessing.normalization import TextCleaner
 logger = logging.getLogger(__name__)
 
 PARSER_VERSION = "attachment-parser-v1"
-OCR_VERSION = "tesseract-v1"
+OCR_VERSION = "tesseract-v1"  # 兼容旧字段；实际 cache key 由 ocr_cache_version() 决定
+
+
+def _tesseract_binary() -> str:
+    import shutil
+    return shutil.which("tesseract") or ""
+
+
+def _tesseract_languages(binary: str) -> str:
+    try:
+        import subprocess
+        proc = subprocess.run([binary, "--list-langs"], capture_output=True, text=True, timeout=10)
+        langs = {line.strip() for line in (proc.stdout or "").splitlines() if line.strip()}
+        if "chi_tra" in langs and "eng" in langs:
+            return "chi_tra+eng"
+        if "eng" in langs:
+            return "eng"
+        return "unknown"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def _tesseract_version(binary: str) -> str:
+    try:
+        import subprocess
+        proc = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=10)
+        first = ((proc.stdout or proc.stderr or "").splitlines() or [""])[0]
+        m = re.search(r"tesseract\s+v?([\d.]+)", first, re.IGNORECASE)
+        return m.group(1) if m else (first.strip().replace(" ", "_")[:40] or "unknown")
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def ocr_cache_version(ocr_enabled: bool = True) -> str:
+    """OCR Parse Cache 版本必须反映真实运行能力，避免缺 tesseract 时永久复用 partial。"""
+    if not ocr_enabled:
+        return "none"
+    binary = _tesseract_binary()
+    if not binary:
+        return "ocr-unavailable"
+    return f"tesseract:{_tesseract_version(binary)}:{_tesseract_languages(binary)}"
 
 
 def sha256_file(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
@@ -98,7 +138,7 @@ def parse_attachment(path: str | Path, filename: str = "", ocr_enabled: bool = T
     att.text_sha256 = hashlib.sha256(normalized_text.encode("utf-8", errors="ignore")).hexdigest()
     # 旧字段兼容：不再作为唯一附件身份。
     att.content_hash = att.text_sha256
-    att.ocr_version = OCR_VERSION if att.ocr_used else "none"
+    att.ocr_version = ocr_cache_version(ocr_enabled)
     if not att.source_sha256:
         att.source_sha256 = sha256_file(p)
     if not att.sha256:

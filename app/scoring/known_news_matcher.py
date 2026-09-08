@@ -1,4 +1,4 @@
-"""已知新闻匹配器：V4.1 明确 local_stub；为 V5 预留 KnownNewsProvider 接口。"""
+"""已知新闻匹配器：V4.1.1 明确 local_stub；为 V5 预留 KnownNewsProvider 接口。"""
 from __future__ import annotations
 
 import json

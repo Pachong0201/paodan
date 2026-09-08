@@ -55,48 +55,60 @@ class GovPatternEngine:
         return []
 
     def _match_rule(self, rule: dict, splitter: ContextSplitter, norm: str):
+        """Window First -> Group Second -> Term OR -> Group AND。
+
+        必须在同一个允许窗口内完成所有 required_groups 的匹配，禁止先用全文
+        选出第一个词再检查局部窗口，否则会产生假阴性。
+        """
         specs = rule.get("required_groups") or []
         if not specs:
             return None
-        # 每组找命中词
-        chosen: list[str] = []
+        # 每组归一化词表；保留原词用于 matched_terms。
+        group_terms: list[list[tuple[str, str]]] = []
         for group in specs:
-            found = None
-            for term in group:
+            pairs = []
+            for term in group or []:
                 key = to_simplified(str(term))
-                if key and splitter.find(key):
-                    found = term
-                    break
-            if found is None:
+                if key:
+                    pairs.append((str(term), key))
+            if not pairs:
                 return None
-            chosen.append(found)
+            group_terms.append(pairs)
 
         windows = self._allowed_windows(rule)
         matched_level = ""
         matched_snip = ""
+        matched_terms: list[str] = []
         for level in windows:
-            wins = self._windows(splitter, norm, level)
-            for ws, we, wtext in wins:
+            for ws, we, wtext in self._windows(splitter, norm, level):
+                chosen: list[str] = []
                 ok = True
-                for term in chosen:
-                    key = to_simplified(str(term))
-                    pos = splitter.find(key)
-                    if not any(ws <= p0 < we for p0, _ in pos):
+                for pairs in group_terms:
+                    found = None
+                    for original, key in pairs:
+                        pos = splitter.find(key)
+                        if any(ws <= p0 < we for p0, _ in pos):
+                            found = original
+                            break
+                    if found is None:
                         ok = False
                         break
-                if ok:
-                    matched_level = level
-                    # 证据片段取窗口内 anchor 附近
-                    anchor = to_simplified(str(chosen[0]))
-                    apos = splitter.find(anchor)
-                    if apos:
-                        p0 = apos[0][0]
-                        s = max(ws, p0 - 40)
-                        e = min(we, p0 + 100)
-                        matched_snip = "…" + norm[s:e].replace("\n", " ") + "…"
-                    else:
-                        matched_snip = "…" + wtext.replace("\n", " ")[:140] + "…"
-                    break
+                    chosen.append(found)
+                if not ok:
+                    continue
+                matched_level = level
+                matched_terms = chosen
+                # 证据片段取第一个命中组在窗口内的位置附近。
+                anchor_key = to_simplified(str(chosen[0]))
+                apos = splitter.find(anchor_key)
+                p0 = next((x for x, _ in apos if ws <= x < we), None)
+                if p0 is not None:
+                    s = max(ws, p0 - 40)
+                    e = min(we, p0 + 100)
+                    matched_snip = "…" + norm[s:e].replace("\n", " ") + "…"
+                else:
+                    matched_snip = "…" + wtext.replace("\n", " ")[:140] + "…"
+                break
             if matched_level:
                 break
         if not matched_level:
@@ -104,7 +116,7 @@ class GovPatternEngine:
         return GovPatternHit(pattern_id=str(rule.get("id")),
                              category=str(rule.get("category") or "GLOBAL"),
                              name=str(rule.get("name") or ""),
-                             matched_terms=chosen,
+                             matched_terms=matched_terms,
                              evidence_snippets=[matched_snip] if matched_snip else [],
                              pattern_score=float(rule.get("base_score") or 80),
                              window=matched_level)

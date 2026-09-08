@@ -55,6 +55,12 @@ class OutboundGuard:
                  redactor: Optional[PrivacyRedactor] = None):
         self.policy = policy or SecurityPolicy()
         self.redactor = redactor or PrivacyRedactor()
+        # 系统 Prompt 是可信指令，可能含公开示例人名/“来源/当事人”等词；
+        # 对其内容扫描只保留高置信 secret/PII 规则，避免误报。
+        self.system_redactor = PrivacyRedactor(exclude_kinds=(
+            "CN_NAME_OO", "CN_NAME_CONTEXT", "CN_NAME_HONORIFIC", "CN_NAME_VERB",
+            "CN_NAME_GENERIC", "EN_NAME",
+        ))
 
     # ------------------------------------------------------------------
     def _check_keys(self, obj: Any) -> List[str]:
@@ -76,12 +82,14 @@ class OutboundGuard:
                     break
         return reasons
 
-    def _check_content(self, obj: Any) -> tuple[List[str], int, List[Dict[str, Any]]]:
+    def _check_content(self, obj: Any, redactor: Optional[PrivacyRedactor] = None
+                       ) -> tuple[List[str], int, List[Dict[str, Any]]]:
+        scanner = redactor or self.redactor
         reasons: List[str] = []
         count = 0
         findings_out: List[Dict[str, Any]] = []
         for value in _walk_values(obj):
-            findings = self.redactor.scan(value)
+            findings = scanner.scan(value)
             if findings:
                 count += len(findings)
                 for f in findings:
@@ -90,7 +98,7 @@ class OutboundGuard:
         # 去重保留顺序
         return list(dict.fromkeys(reasons)), count, findings_out[:100]
 
-    def check(self, payload: Any) -> GuardResult:
+    def check(self, payload: Any, redactor: Optional[PrivacyRedactor] = None) -> GuardResult:
         """检查业务结构/最终 HTTP body；任何异常 fail-closed。"""
         try:
             if isinstance(payload, SafeLLMPayload):
@@ -105,10 +113,10 @@ class OutboundGuard:
             serialized = json.dumps(data, ensure_ascii=False, sort_keys=True, default=str) \
                 if not isinstance(data, str) else data
             reasons = self._check_keys(data)
-            content_reasons, redaction_count, findings = self._check_content(data)
+            content_reasons, redaction_count, findings = self._check_content(data, redactor)
             reasons.extend(content_reasons)
             # 最终 HTTP body 再扫一遍（防止后续拼装/序列化泄漏）
-            final_reasons, final_count, final_findings = self._check_content(serialized)
+            final_reasons, final_count, final_findings = self._check_content(serialized, redactor)
             reasons.extend(final_reasons)
             redaction_count += final_count
             findings.extend(final_findings)

@@ -14,6 +14,7 @@ from typing import List, Optional
 from ..config import (CONFIG_DIR, LLM_API_KEY, LLM_BASE_URL, LLM_ENABLED, LLM_MODE,
                       LLM_MODEL, LLM_TIMEOUT)
 from ..llm.client import LLMClient, LLMError
+from ..security.models import SecurityBlockedError
 from ..llm.screener import truncate_for_llm
 from ..preprocessing.normalization import mask_sensitive
 from . import schema as release_schema
@@ -114,6 +115,10 @@ class ReleaseAdvisor:
                 # 外部 LLM 由 _ask_llm 内部构造 SafePayloadBuilder；不得使用原始正文。
                 llm_out = self._ask_llm(f, rec, text or "", unified=unified)
                 rec = self._merge(f, rec, llm_out)
+            except SecurityBlockedError as e:
+                logger.warning("渠道顾问 External LLM 隐私阻断，回退规则结果: %s", e)
+                rec.source = "rule"
+                rec.llm_status = "blocked"
             except Exception as e:  # noqa: BLE001
                 logger.warning("渠道顾问 LLM 调用失败，回退规则结果: %s", e)
                 rec.source = "rule"

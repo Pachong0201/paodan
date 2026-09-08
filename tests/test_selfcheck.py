@@ -18,7 +18,9 @@ def test_selfcheck_valid(capsys):
     assert selfcheck(cfg, NEWS_SIGNAL_DIR) == 0
     out = capsys.readouterr().out
     for text in ("[OK] A categories", "[OK] P patterns", "[OK] G categories",
-                 "[OK] security.yaml", "[OK] schema version", "[OK] LLM_TRIGGER_SCORE"):
+                 "[OK] security.yaml", "[OK] schema version", "[OK] LLM_TRIGGER_SCORE",
+                 "[Analysis Versioning]", "[Unified Signal Config]",
+                 "[V3 Candidate Pool]", "[Runtime Environment]"):
         assert text in out
 
 

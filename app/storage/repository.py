@@ -10,6 +10,7 @@ from typing import Any, Optional
 from ..models import (AttachmentDoc, EmailDocument, FinalScore, LLMResult,
                       RuleResult, ScreeningRecord)
 from .database import Database
+from .migrations import PIPELINE_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -224,20 +225,23 @@ class Repository:
              str(g.get("governance_priority") or g.get("priority") or ""),
              _json(dims or {}), _json(details or []), _now()))
 
-    def start_analysis_run(self, email_id: str, *, pipeline_version: str = "4.1",
+    def start_analysis_run(self, email_id: str, *, pipeline_version: str = PIPELINE_VERSION,
                            political_rule_pack_hash: str = "",
                            governance_rule_pack_hash: str = "",
                            scoring_rule_hash: str = "", prompt_hash: str = "",
                            llm_mode: str = "", llm_provider: str = "",
-                           llm_model: str = "") -> int:
+                           llm_model: str = "", release_rule_hash: str = "",
+                           named_rule_hash: str = "", channel_entity_hash: str = "") -> int:
         cur = self.db.execute(
             """INSERT INTO analysis_runs
                (email_id, pipeline_version, political_rule_pack_hash, governance_rule_pack_hash,
                 scoring_rule_hash, prompt_hash, llm_mode, llm_provider, llm_model,
+                release_rule_hash, named_rule_hash, channel_entity_hash,
                 analysis_started_at, result_status)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (email_id, pipeline_version, political_rule_pack_hash, governance_rule_pack_hash,
              scoring_rule_hash, prompt_hash, llm_mode, llm_provider, llm_model,
+             release_rule_hash, named_rule_hash, channel_entity_hash,
              _now(), "running"))
         return int(cur.lastrowid)
 
@@ -253,16 +257,32 @@ class Repository:
 
     def analysis_is_stale(self, email_id: str, political_rule_pack_hash: str,
                           governance_rule_pack_hash: str, scoring_rule_hash: str,
-                          prompt_hash: str) -> bool:
+                          prompt_hash: str, pipeline_version: str = "",
+                          llm_mode: str = "", llm_provider: str = "",
+                          llm_model: str = "", release_rule_hash: str = "",
+                          named_rule_hash: str = "", channel_entity_hash: str = "") -> bool:
         latest = self.latest_analysis(email_id)
         if not latest:
             return True
-        return any([
-            (latest.get("political_rule_pack_hash") or "") != (political_rule_pack_hash or ""),
-            (latest.get("governance_rule_pack_hash") or "") != (governance_rule_pack_hash or ""),
-            (latest.get("scoring_rule_hash") or "") != (scoring_rule_hash or ""),
-            (latest.get("prompt_hash") or "") != (prompt_hash or ""),
-        ])
+        pairs = [
+            ("political_rule_pack_hash", political_rule_pack_hash),
+            ("governance_rule_pack_hash", governance_rule_pack_hash),
+            ("scoring_rule_hash", scoring_rule_hash),
+            ("prompt_hash", prompt_hash),
+            ("pipeline_version", pipeline_version),
+            ("llm_mode", llm_mode),
+            ("llm_provider", llm_provider),
+            ("llm_model", llm_model),
+            ("release_rule_hash", release_rule_hash),
+            ("named_rule_hash", named_rule_hash),
+            ("channel_entity_hash", channel_entity_hash),
+        ]
+        for key, current in pairs:
+            if current == "":
+                continue
+            if (latest.get(key) or "") != current:
+                return True
+        return False
 
     # ---------- higher-level ----------
     def save_review_queue(self, rec: ScreeningRecord):

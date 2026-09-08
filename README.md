@@ -1,4 +1,4 @@
-# 台湾政治新闻爆料邮箱智能筛选引擎 V4.1（稳定性、安全性与双轨融合）
+# 台湾政治新闻爆料邮箱智能筛选引擎 V4.1.1（Final Hardening）
 
 围绕「台湾政治负面新闻标识规则库 V1.0」（`config/news_signal/`）构建的**爆料邮箱新闻线索筛选引擎**：
 从爆料邮箱材料（邮件正文 + 附件）中自动发现值得记者核查的高价值线索，输出 0-100 评分、
@@ -404,7 +404,7 @@ V3 实体库（政治人物/媒体人）通过 `config/channel_entities.yaml` �
 
 ---
 
-# V4.1 Stability, Privacy & Dual-Track Unification
+# V4.1.1 Final Hardening（Stability, Privacy & Dual-Track Unification）
 
 > 本版本不新增业务类别，重点是修复数据一致性、附件串件、外部 LLM 隐私、V1/V4 语义断层、
 > 数据库持久化、配置失效、Pattern 全文拼接误报、表格公式注入，并建立可持续演进基础。
@@ -547,8 +547,8 @@ text_sha256   = 抽取文本标准化后的 SHA256
 
 ## 6. Database / Analysis Versioning / Reprocess
 
-数据库使用 `app/storage/migrations/` 自动迁移，`schema_version` 当前为 `2`；旧库启动时保留旧数据、
-补齐新表/列/索引。新增：
+数据库使用 `app/storage/migrations/` 自动迁移，`schema_version` 当前为 `3`；旧库启动时保留旧数据、
+清理历史重复子行、补齐新表/列/唯一索引。新增：
 
 ```text
 governance_results
@@ -594,6 +594,71 @@ CSV/Excel 所有邮件可控字段写文件前必须调用 `app/security/spreads
 ## 9. Security Notes
 
 - `tests/fixtures/` 放 synthetic 测试样本；`data/inbox/**` 默认全部忽略，公开仓库不得提交真实 `.eml`。
-- `scripts/security_scan.py` 检查 tracked files 的 API key、私密邮箱、本机路径、银行账号 canary 和 `data/` 下 `.eml`，CI 执行。
+- `scripts/security_scan.py` 检查 tracked files 的 API key、私密邮箱、本机路径、银行账号 canary 和 `.eml`：`data/` 下直接 FAIL；`tests/fixtures/` 必须有 `X-Paodan-Synthetic-Fixture: true` 或命中 `tests/fixtures/manifest.json` SHA256。
 - 自动 PII 识别不可能 100%；KnownNews 仍为 `local_stub`，未接台湾新闻数据库；匿名实体分类仍可能有误差。
 - 外部 LLM 生产调用前仍应由编辑部确认隐私策略、allowlist 与审计日志留存。
+
+
+---
+
+# V4.1.1 Final Hardening
+
+本轮只做可靠性、安全性、一致性收口，不扩展新业务类别、媒体、渠道、关键词库或产品功能。
+
+## 1. External LLM 安全边界
+
+- 生产默认仍为 `STRUCTURED_ONLY`。
+- External raw 永远禁止；不存在 `ALLOW_RAW_EXTERNAL_LLM` 一类绕过。
+- External 请求必须经过 `SafePayloadBuilder -> OutboundGuard final scan -> requests.post`。
+- Privacy Block 属于安全层 fail closed：`requests.post = 0`，但业务层必须降级继续本地规则、Final Score、Summary、Verification、SQLite、Excel、Review Queue。
+- `llm_status` 可能为 `blocked`；不得把被阻断的敏感内容写入 reason。
+- `REDACTED_SNIPPETS` 仅为受限模式：必须经过实体假名化 + `PrivacyRedactor` + `OutboundGuard`；生产推荐只使用 `STRUCTURED_ONLY`。
+
+## 2. V3 Candidate Pool
+
+- External LLM 的 `pool_ids` 必须是候选实体 ID，例如 `media_mirror`、`media_udn`、`actor_huang_kuochang`、`authority_prosecutor_generic`。
+- 禁止使用 NC rule ID、RR route ID、category ID 作为候选池。
+- LLM 只能调整排序、`fit_score`、`reason`、`avoid`；候选池外实体必须被 schema 拒绝并回退 rule。
+
+## 3. Analysis Versioning 重新分析条件
+
+重复导入时，以下任一变化都会触发 `analysis stale` 并允许重新分析：
+
+```text
+pipeline_version
+political_rule_pack_hash
+governance_rule_pack_hash
+scoring_rule_hash
+prompt_hash
+llm_mode
+llm_provider
+llm_model
+release_rule_hash
+named_rule_hash
+channel_entity_hash
+```
+
+`analysis_runs` 记录上述版本/哈希，避免 V2/V3 规则更新后高价值邮件被 duplicate 逻辑挡住。
+
+## 4. 数据一致性
+
+- 旧库 migration 会检测 `attachments`、`entities`、`pattern_matches`、`named_channel_recommendations` 的重复行。
+- 按逻辑主键保留最新/最完整一条，再建立严格 UNIQUE INDEX。
+- 若旧库 `source_sha256` 为空，附件使用兼容键 `(email_id, filename, sha256, content_hash)` 清理历史重复。
+- 一封邮件持久化仍使用一个业务事务；任何异常 rollback。
+
+## 5. Windows 正式支持
+
+- GitHub Actions 新增 `windows-latest + Python 3.12`。
+- Windows 必须执行 `pytest -q`、`python -m app.main --selfcheck`、`python scripts/security_scan.py`。
+- 重点覆盖 drive path、UNC path、Path resolve、SQLite、Excel、attachments_cache、temp file、Unicode/中文路径。
+- OCR 不可用时允许 graceful degraded / skip，不得因路径问题静默忽略。
+
+## 6. Review Queue 与 KnownNews
+
+- Review Queue 属本地敏感数据区，只做本地复制/去重/sidecar；不得同步公共云盘、不得 external upload、不得自动发送。
+- KnownNews 仍为 `local_stub`，`possible_new_information=[]` 只表示 `novelty_status=unknown`，不代表确认没有新增信息。
+
+## 7. 定位声明
+
+本系统只做新闻线索筛选和核验辅助，不对指控作事实认定；所有发布、检举、联系媒体/人物/机关的动作均需编辑部人工确认。

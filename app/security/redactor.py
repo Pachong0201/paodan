@@ -29,9 +29,32 @@ def _preview(value: str) -> str:
     return s[:2] + "*" * max(1, len(s) - 4) + s[-2:]
 
 
+CN_SURNAMES = (
+    "王李张刘陈杨黄赵周吴徐孙朱马胡郭林何高梁郑罗宋谢唐韩曹许邓萧冯曾程蔡彭潘袁"
+    "于董余苏叶吕魏蒋田杜丁沈姜范江傅钟卢汪戴崔任陆廖姚方金邱夏谭韦贾邹石熊孟秦阎"
+    "薛侯雷白龙段郝孔邵史毛常万顾赖武康贺严尹钱施牛洪龚"
+)
+
 PATTERNS: List[Tuple[str, Pattern[str], str]] = [
     ("PRIVATE_CANARY", re.compile(r"(?i)\b(?:RAW|ATTACHMENT)_PRIVATE_CANARY_[A-Z0-9]+\b"),
      "[REDACTED_CANARY]"),
+    ("CN_NAME_OO", re.compile(r"[\u4e00-\u9fff]{1,2}○○"), "[REDACTED_PERSON]"),
+    ("CN_NAME_CONTEXT", re.compile(
+        r"(?:姓名|名字|當事人|当事人|證人|证人|爆料人|來源|来源|聯絡人|联系人|署名|化名|source|witness)"
+        r"[：:\s]*([\u4e00-\u9fff]{2,4})"), "[REDACTED_PERSON]"),
+    ("CN_NAME_HONORIFIC", re.compile(
+        r"[\u4e00-\u9fff]{1,2}(?:先生|小姐|女士|太太|主任|董事|經理|经理|里長|里长|議員|议员|"
+        r"同學|同学|醫師|医师|律師|律师)"), "[REDACTED_PERSON]"),
+    ("CN_NAME_VERB", re.compile(
+        rf"(?:[{CN_SURNAMES}])[\u4e00-\u9fff]{{1,3}}"
+        r"(?=(?:昨天|今天|日前|表示|指出|告訴|告诉|說|说|提供|爆料|證實|证实))"),
+     "[REDACTED_PERSON]"),
+    ("CN_NAME_GENERIC", re.compile(
+        rf"(?<![\u4e00-\u9fff])(?:[{CN_SURNAMES}])[\u4e00-\u9fff]{{1,2}}(?![\u4e00-\u9fff])"),
+     "[REDACTED_PERSON]"),
+    ("EN_NAME", re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}\b"), "[REDACTED_PERSON]"),
+    ("ADDRESS", re.compile(
+        r"(?:地址|住址|住所|地址為|地址为|戶籍|户籍)[：:\s]*([^\s，。；;]{4,})"), "[REDACTED_ADDRESS]"),
     ("MESSAGE_ID", re.compile(r"<[^<>\s@]+@[^<>\s]+>"), "[REDACTED_MESSAGE_ID]"),
     ("WINDOWS_PATH", re.compile(r"(?:[A-Za-z]:\\[^\s<>\"'|?*]+|\\\\[^\\/\s]+\\[^\s<>\"'|?*]+)"),
      "[REDACTED_PATH]"),
@@ -56,18 +79,24 @@ PATTERNS: List[Tuple[str, Pattern[str], str]] = [
 
 # 路径/Message-ID 等长匹配优先，避免被数字规则拆碎。
 ORDER = {
-    "PRIVATE_CANARY": -1, "WINDOWS_PATH": 0, "UNIX_PATH": 1, "MESSAGE_ID": 2, "API_KEY": 3,
-    "BEARER_TOKEN": 4, "PASSWORD_SECRET": 5, "LINE_ID": 6, "EMAIL": 7,
-    "TAIWAN_ID": 8, "PHONE": 9, "BANK_ACCOUNT": 10, "IP": 11,
-    "USERNAME_HANDLE": 12,
+    "PRIVATE_CANARY": -2,
+    "CN_NAME_OO": -1, "CN_NAME_CONTEXT": 0, "CN_NAME_HONORIFIC": 1,
+    "CN_NAME_VERB": 2, "CN_NAME_GENERIC": 3, "EN_NAME": 4, "ADDRESS": 5,
+    "WINDOWS_PATH": 6, "UNIX_PATH": 7, "MESSAGE_ID": 8, "API_KEY": 9,
+    "BEARER_TOKEN": 10, "PASSWORD_SECRET": 11, "LINE_ID": 12, "EMAIL": 13,
+    "TAIWAN_ID": 14, "PHONE": 15, "BANK_ACCOUNT": 16, "IP": 17,
+    "USERNAME_HANDLE": 18,
 }
 
 
 class PrivacyRedactor:
-    def __init__(self, extra_patterns: Iterable[Tuple[str, Pattern[str], str]] | None = None):
-        self.patterns = list(PATTERNS)
+    def __init__(self, extra_patterns: Iterable[Tuple[str, Pattern[str], str]] | None = None,
+                 exclude_kinds: Iterable[str] | None = None):
+        excluded = {str(x).upper() for x in (exclude_kinds or [])}
+        self.patterns = [p for p in PATTERNS if p[0].upper() not in excluded]
         if extra_patterns:
-            self.patterns.extend(list(extra_patterns))
+            self.patterns.extend([p for p in list(extra_patterns)
+                                  if p[0].upper() not in excluded])
 
     def scan(self, text: Any) -> List[RedactionFinding]:
         s = "" if text is None else str(text)

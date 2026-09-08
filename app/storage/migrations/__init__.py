@@ -1,16 +1,20 @@
-"""SQLite schema migrations for V4.1.
+"""SQLite schema migrations for V4.1.1.
 
-原则：兼容已有用户数据库；启动时自动执行未应用的 migration；保留旧数据。
+原则：兼容已有用户数据库；启动时自动执行未应用的 migration；保留旧数据；
+历史重复子行必须清理后再建立 UNIQUE INDEX，不能静默跳过。
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-SCHEMA_VERSION = 2
-PIPELINE_VERSION = "4.1"
+logger = logging.getLogger(__name__)
+
+SCHEMA_VERSION = 3
+PIPELINE_VERSION = "4.1.1"
 
 
 def _now() -> str:
@@ -37,14 +41,67 @@ def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> 
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
-def _safe_index(conn: sqlite3.Connection, sql: str) -> None:
+def _safe_index(conn: sqlite3.Connection, sql: str, strict: bool = False) -> None:
     try:
         conn.execute(sql)
     except sqlite3.IntegrityError:
-        # 旧库可能存在重复行；唯一索引无法建立时保留数据，由 Repository 做幂等 upsert。
-        pass
-    except sqlite3.Error:
-        pass
+        if strict:
+            raise
+        logger.warning("唯一索引创建失败（旧库可能仍有重复行），稍后 migration 将清理: %s", sql)
+    except sqlite3.Error as exc:
+        if strict:
+            raise
+        logger.warning("索引创建失败: %s (%s)", sql, exc)
+
+
+def _row_value(row: Dict[str, object], col: str) -> str:
+    value = row.get(col)
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _dedupe_table(conn: sqlite3.Connection, table: str,
+                  key_cols: Sequence[str],
+                  fallback_key_cols: Optional[Sequence[str]] = None,
+                  prefer_cols: Sequence[str] = ()) -> int:
+    """按逻辑主键清理重复行，保留“最完整/最新”的一条。
+
+    返回删除行数。旧库若缺少表/列则安全跳过。
+    """
+    if not _table_exists(conn, table):
+        return 0
+    cols = _columns(conn, table)
+    if not all(c in cols for c in key_cols):
+        return 0
+    select_cols = ", ".join(["rowid AS __paodan_rowid", *cols])
+    rows = [dict(r) for r in conn.execute(f"SELECT {select_cols} FROM {table}").fetchall()]
+    groups: Dict[Tuple[str, ...], List[Dict[str, object]]] = {}
+    for row in rows:
+        key = tuple(_row_value(row, c) for c in key_cols)
+        if fallback_key_cols and any(k == "" for k in key):
+            if all(c in cols for c in fallback_key_cols):
+                key = tuple(_row_value(row, c) for c in fallback_key_cols)
+        # 即使逻辑键为空也归组去重，否则 UNIQUE INDEX 无法建立。
+        groups.setdefault(key, []).append(row)
+
+    deleted = 0
+    for key, items in groups.items():
+        if len(items) <= 1:
+            continue
+        def _quality(row: Dict[str, object]) -> Tuple[int, int]:
+            complete = sum(1 for c in prefer_cols if _row_value(row, c) != "")
+            return complete, int(row.get("__paodan_rowid") or 0)
+        best = max(items, key=_quality)
+        best_rowid = int(best.get("__paodan_rowid") or 0)
+        for row in items:
+            rid = int(row.get("__paodan_rowid") or 0)
+            if rid and rid != best_rowid:
+                conn.execute(f"DELETE FROM {table} WHERE rowid=?", (rid,))
+                deleted += 1
+    if deleted:
+        logger.info("migration dedupe %s: removed %d duplicate row(s)", table, deleted)
+    return deleted
 
 
 def migration_001_add_v41_tables(conn: sqlite3.Connection) -> None:
@@ -118,7 +175,7 @@ def migration_001_add_v41_tables(conn: sqlite3.Connection) -> None:
         );
         """
     )
-    # 子表幂等唯一约束（旧库重复行时不阻断启动）
+    # 先尝试创建；若旧库已有重复，migration_003 会清理后严格重建。
     _safe_index(conn, "CREATE UNIQUE INDEX IF NOT EXISTS uq_attachments_email_source "
                       "ON attachments(email_id, source_sha256) "
                       "WHERE source_sha256 IS NOT NULL AND source_sha256 != ''")
@@ -139,6 +196,36 @@ def migration_002_v41_finalize(conn: sqlite3.Connection) -> None:
     _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_governance_score ON governance_results(score)")
 
 
+def migration_003_v411_hardening(conn: sqlite3.Connection) -> None:
+    """V4.1.1：清理历史重复子行；严格建立唯一索引；补齐 analysis hash 字段。"""
+    _add_column(conn, "analysis_runs", "release_rule_hash", "TEXT")
+    _add_column(conn, "analysis_runs", "named_rule_hash", "TEXT")
+    _add_column(conn, "analysis_runs", "channel_entity_hash", "TEXT")
+
+    # 逻辑主键去重；保留文本/reason 更完整、id 更新的行。
+    _dedupe_table(conn, "attachments", ("email_id", "source_sha256"),
+                  fallback_key_cols=("email_id", "filename", "sha256", "content_hash"),
+                  prefer_cols=("text", "text_sha256", "source_sha256"))
+    _dedupe_table(conn, "entities", ("email_id", "entity_type", "text"),
+                  prefer_cols=("count",))
+    _dedupe_table(conn, "pattern_matches", ("email_id", "pattern_id", "window"),
+                  prefer_cols=("matched_terms", "evidence_snippets"))
+    _dedupe_table(conn, "named_channel_recommendations",
+                  ("email_id", "entity_id", "channel_group"),
+                  prefer_cols=("reason", "channel_role"))
+
+    # 去重后必须真正建立唯一索引；失败则 migration 失败，不允许继续积累脏行。
+    _safe_index(conn, "CREATE UNIQUE INDEX IF NOT EXISTS uq_attachments_email_source "
+                      "ON attachments(email_id, source_sha256) "
+                      "WHERE source_sha256 IS NOT NULL AND source_sha256 != ''", strict=True)
+    _safe_index(conn, "CREATE UNIQUE INDEX IF NOT EXISTS uq_entities_email_type_text "
+                      "ON entities(email_id, entity_type, text)", strict=True)
+    _safe_index(conn, "CREATE UNIQUE INDEX IF NOT EXISTS uq_pattern_email_pattern_window "
+                      "ON pattern_matches(email_id, pattern_id, window)", strict=True)
+    _safe_index(conn, "CREATE UNIQUE INDEX IF NOT EXISTS uq_named_email_entity_group "
+                      "ON named_channel_recommendations(email_id, entity_id, channel_group)", strict=True)
+
+
 @dataclass
 class Migration:
     version: int
@@ -149,6 +236,7 @@ class Migration:
 MIGRATIONS: List[Migration] = [
     Migration(1, "V4.1 add governance/analysis/cache tables and columns", migration_001_add_v41_tables),
     Migration(2, "V4.1 finalize indexes and schema version", migration_002_v41_finalize),
+    Migration(3, "V4.1.1 deduplicate child tables and add analysis hashes", migration_003_v411_hardening),
 ]
 
 

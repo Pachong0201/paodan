@@ -1,5 +1,5 @@
-version: '4.1'
-description: V1 Political + V4 Governance 统一轨道阈值（配置化，不散落 hardcode）
+version: '4.1.1'
+description: V4.1.1 V1 Political + V4 Governance 统一轨道阈值（配置化，不散落 hardcode）
 unified_signals:
   political_threshold: 40
   governance_threshold: 40

@@ -245,5 +245,17 @@ def resolve_llm_trigger_score(cli_value: float | None = None) -> float:
     return value
 
 
+def resolve_rule_trigger_extra(cli_value: bool | None = None) -> bool:
+    """Extra LLM 触发开关：代码默认 < ENV < CLI。"""
+    default = bool(globals().get("RULE_TRIGGER_EXTRA", True))
+    raw = os.getenv("RULE_TRIGGER_EXTRA")
+    value = default
+    if raw is not None:
+        value = raw.strip().lower() not in ("0", "false", "no", "off", "")
+    if cli_value is not None:
+        value = bool(cli_value)
+    return value
+
+
 def priority_min_value(p: str) -> float:
     return {"S": 90, "A": 75, "B": 60, "C": 40, "D": 0}.get(p.upper(), 0)

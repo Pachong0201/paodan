@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from ..config import (LLM_API_KEY, LLM_BASE_URL, LLM_ENABLED, LLM_MODE, LLM_MODEL,
                       LLM_TEMPLATE_FILE, LLM_TIMEOUT, NEWS_SIGNAL_DIR)
 from ..models import LLMResult, RuleResult
+from ..security.models import SecurityBlockedError
 from ..preprocessing.normalization import mask_sensitive
 from ..rules.config_loader import RuleConfig
 from .client import LLMClient, LLMError
@@ -117,6 +118,11 @@ class LLMScreener:
             llm = LLMResult(raw=out, **{k: v for k, v in cleaned.items() if k in SCHEMA_FIELDS})
             llm.llm_status = "ok" if self.mode == "api" else "template"
             return llm
+        except SecurityBlockedError as e:
+            logger.warning("External LLM 隐私策略阻断，回退本地规则: %s", e)
+            return LLMResult(llm_status="blocked", relevant=False,
+                             reason_for_attention="External LLM 请求被隐私策略阻断，已回退本地规则结果",
+                             one_sentence_summary="External LLM 隐私阻断，已回退本地规则结果")
         except LLMError as e:
             logger.warning("LLM 筛选失败: %s", e)
             return LLMResult(llm_status="failed", relevant=False,
@@ -172,6 +178,11 @@ class LLMScreener:
             llm = LLMResult(raw=out, **{k: v for k, v in cleaned.items() if k in SCHEMA_FIELDS})
             llm.llm_status = "ok" if self.mode == "api" else "template"
             return llm
+        except SecurityBlockedError as e:
+            logger.warning("External LLM 隐私策略阻断，回退本地规则: %s", e)
+            return LLMResult(llm_status="blocked", relevant=False,
+                             reason_for_attention="External LLM 请求被隐私策略阻断，已回退本地规则结果",
+                             one_sentence_summary="External LLM 隐私阻断，已回退本地规则结果")
         except LLMError as e:
             logger.warning("LLM safe 筛选失败: %s", e)
             return LLMResult(llm_status="failed", relevant=False,

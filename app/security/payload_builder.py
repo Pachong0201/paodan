@@ -137,12 +137,19 @@ class SafePayloadBuilder:
         p.known_news_flags = self._known_news_flags(known_news)
         p.novelty_flags = _str_list(_get(unified, "new_information", None) or
                                     _get(llm, "new_information", None), limit=20)
-        p.safe_snippets = self._safe_snippets(_get(llm, "evidence_items", None) or
-                                              _get(rule, "evidence_snippets", None))
+        snippet_entities = (
+            _as_list(_get(rule, "entities", None)) +
+            _as_list(_get(rule, "target_persons_found", None)) +
+            _as_list(_get(rule, "target_orgs_found", None)) +
+            _as_list(_get(llm, "target_persons", None)) +
+            _as_list(_get(llm, "target_organizations", None)))
+        p.safe_snippets = self._safe_snippets(
+            _get(llm, "evidence_items", None) or _get(rule, "evidence_snippets", None),
+            entities=snippet_entities)
         p.metadata = {
             "known_news_mode": str(_get(known_news, "mode", "local_stub") or "local_stub"),
             "novelty_status": str(_get(known_news, "novelty_status", "unknown") or "unknown"),
-            "pipeline_version": "4.1",
+            "pipeline_version": "4.1.1",
             "safe_payload_schema": "SafeLLMPayload/v1",
         }
         # 过滤掉任何意外 forbidden 字段
@@ -189,7 +196,7 @@ class SafePayloadBuilder:
             "contains_new_information": bool(_get(f, "contains_new_information", True)),
         }
         p.metadata = {
-            "pipeline_version": "4.1",
+            "pipeline_version": "4.1.1",
             "safe_payload_schema": "SafeLLMPayload/v2",
             "rule_hits": _str_list(_get(rec, "rule_hits", None), limit=20),
             "route_confidence": float(_get(rec, "route_confidence", 0.0) or 0.0),
@@ -231,7 +238,7 @@ class SafePayloadBuilder:
             p.public_entities = p.public_entities[:50]
         p.public_historical_case_summaries = _str_list(kwargs.get("historical_case_summaries"), limit=10)
         p.metadata = {
-            "pipeline_version": "4.1",
+            "pipeline_version": "4.1.1",
             "safe_payload_schema": "SafeLLMPayload/v3",
             "candidate_only": True,
         }
@@ -303,16 +310,25 @@ class SafePayloadBuilder:
         out.append("known_news_mode:local_stub")
         return out
 
-    def _safe_snippets(self, snippets: Any) -> List[str]:
+    def _safe_snippets(self, snippets: Any, entities: Any = None) -> List[str]:
         if self.policy.privacy != PrivacyLevel.REDACTED_SNIPPETS:
             return []
         if not self.policy.allow_safe_snippets:
             return []
+        # 先做实体假名化（SOURCE/WITNESS 等不区分，统一按 SOURCE 处理），再做 PII 正则。
+        entity_names: List[str] = []
+        for e in _as_list(entities):
+            name = str(_get(e, "text", e) or "").strip()
+            if name and name not in entity_names:
+                entity_names.append(name)
         out = []
         for s in _as_list(snippets):
             text = str(s or "").strip()
             if not text:
                 continue
+            for name in sorted(entity_names, key=len, reverse=True):
+                if name and name in text:
+                    text = text.replace(name, self.pseudonymizer.pseudonymize(name, "SOURCE"))
             red = self.redactor.redact(text)
             if red and red not in out:
                 out.append(red[:500])
