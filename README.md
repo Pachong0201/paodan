@@ -45,6 +45,18 @@ S/A/B/C/D 优先级队列、记者摘要与核查清单；**V2 在 S/A/B 线索�
 
 ## 安装与运行
 
+### 新电脑一键安装
+
+- Windows：双击 `install.bat`
+- Linux / macOS / WSL：执行 `./install.sh`
+
+脚本会创建 `.venv` 并安装 `requirements.txt` + `constraints.txt`。安装后启动：
+
+- Windows：双击 `open_dashboard.bat`
+- Linux / macOS / WSL：`python scripts/open_dashboard.py`
+
+### 手动安装
+
 ```bash
 pip install -r requirements.txt        # 见下方依赖清单
 cp .env.example .env                    # 配置 LLM（不配则离线模板模式）
