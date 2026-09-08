@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import email
+import hashlib
 import logging
 import re
 import uuid
@@ -80,13 +81,15 @@ def _addr_list(value) -> List[str]:
 
 
 def parse_eml(path: str | Path) -> EmailDocument:
-    """解析 .eml 文件到 EmailDocument（附件元数据+转储缓存，正文文本化）。"""
+    """解析 .eml 文件到 EmailDocument（附件元数据+内容隔离缓存，正文文本化）。"""
     path = Path(path)
-    doc = EmailDocument(source_path=str(path))
-    with open(path, "rb") as f:
-        msg = email.message_from_binary_file(f, policy=email_policy)
+    raw_bytes = path.read_bytes()
+    raw_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+    doc = EmailDocument(source_path=str(path), raw_sha256=raw_sha256)
+    msg = email.message_from_bytes(raw_bytes, policy=email_policy)
 
     doc.message_id = _decode_header_value(msg.get("Message-ID", "")).strip("<>")
+    doc.normalized_message_id = _normalize_message_id(doc.message_id)
     doc.subject = _decode_header_value(msg.get("Subject"))
     doc.sender = _decode_header_value(msg.get("From"))
     doc.recipients = _addr_list(msg.get("To"))
@@ -99,7 +102,6 @@ def parse_eml(path: str | Path) -> EmailDocument:
 
     for part in msg.walk():
         ctype = part.get_content_type()
-        disp = str(part.get("Content-Disposition", "")).lower()
         fname_raw = part.get_filename()
         if fname_raw:
             fname = _decode_header_value(fname_raw)
@@ -127,15 +129,17 @@ def parse_eml(path: str | Path) -> EmailDocument:
     doc.body_text = body_text
     doc.html_body = "\n\n".join(html_parts)
 
-    # 附件落盘缓存（不解析内容，由 AttachmentParser 按类型处理）
-    cache_dir = path.parent / ".attachments_cache"
+    # 附件落盘：按 email_source_hash / attachment_source_sha256 强隔离，同名不同内容绝不串件。
+    cache_root = path.parent / ".attachments_cache"
+    email_cache_dir = cache_root / raw_sha256
     try:
-        cache_dir.mkdir(parents=True, exist_ok=True)
+        email_cache_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
-        cache_dir = path.parent
+        email_cache_dir = path.parent
     for fname, payload, ctype in attach_specs:
-        safe = re.sub(r"[^\w.\-]+", "_", fname) or f"attach_{uuid.uuid4().hex[:8]}"
-        att_path = cache_dir / safe
+        source_sha256 = hashlib.sha256(payload).hexdigest()
+        safe = _safe_filename(fname) or f"attach_{uuid.uuid4().hex[:8]}"
+        att_path = email_cache_dir / f"{source_sha256}_{safe}"
         try:
             if not att_path.exists():
                 att_path.write_bytes(payload)
@@ -143,13 +147,44 @@ def parse_eml(path: str | Path) -> EmailDocument:
             logger.warning("附件写入失败 %s: %s", safe, e)
             continue
         att = AttachmentDoc(filename=fname, file_type=_ext_type(fname, ctype),
+                            sha256=source_sha256, source_sha256=source_sha256,
                             metadata={"size": len(payload), "content_type": ctype,
-                                      "cached_path": str(att_path)})
+                                      "cached_path": str(att_path),
+                                      "email_source_hash": raw_sha256})
         doc.attachments.append(att)
 
     doc.body_hash = _hash(body_text)
-    doc.email_id = doc.message_id or doc.body_hash[:16]
+    if doc.normalized_message_id:
+        doc.email_id = "MID:" + hashlib.sha256(doc.normalized_message_id.encode("utf-8")).hexdigest()
+    else:
+        # 无 Message-ID：必须使用原始 EML bytes，禁止用正文哈希截断造成同正文不同发件人冲突。
+        doc.email_id = "RAW:" + raw_sha256
     return doc
+
+
+def _normalize_message_id(message_id: str) -> str:
+    mid = _decode_header_value(message_id).strip()
+    mid = mid.strip("<>").strip()
+    return mid.lower()
+
+
+def _safe_filename(name: str, max_len: int = 120) -> str:
+    """跨 Windows/WSL/Linux 的附件安全文件名，保留扩展名并避免路径穿越。"""
+    name = str(name or "").replace("\\", "/").split("/")[-1]
+    name = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", name, flags=re.UNICODE)
+    name = name.strip("._") or ""
+    if not name:
+        return ""
+    # Windows 保留名
+    stem = Path(name).stem.upper()
+    if stem in {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
+                "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
+                "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}:
+        name = "_" + name
+    if len(name) > max_len:
+        ext = Path(name).suffix
+        name = name[:max(1, max_len - len(ext) - 1)] + ext
+    return name
 
 
 def _HTMLTextExtractor2(html: str) -> str:

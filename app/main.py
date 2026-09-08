@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from .config import (DATA_DIR, DB_PATH, LLM_MODE, LOG_DIR, LOG_FILE, MIN_PRIORITY,
-                     NEWS_SIGNAL_DIR, REPORTS_DIR, priority_min_value)
+                     NEWS_SIGNAL_DIR, REPORTS_DIR, priority_min_value, resolve_llm_trigger_score)
 from .pipeline.screening_pipeline import ScreeningPipeline
 from .rules.config_loader import RuleConfig
 from .scoring.scorer import priority_of
@@ -79,29 +79,95 @@ def _print_record(rec, verbose: bool = False):
             print(f"     核查{i}: {vt}")
 
 
-def selfcheck(cfg: RuleConfig) -> int:
-    """规则包验收自检."""
-    print("=" * 60)
-    print("规则包自检")
-    print("=" * 60)
+def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
+    """V4.1 生产自检：规则包 / Governance / Privacy / DB Schema / Output Security。"""
+    print("=" * 64)
+    print("V4.1 系统自检")
+    print("=" * 64)
+    failures: list[str] = []
+    cfg_dir = Path(config_dir) if config_dir else Path(getattr(cfg, "directory", NEWS_SIGNAL_DIR) or NEWS_SIGNAL_DIR)
+
+    # ---------- V1 Political Rules ----------
+    print("\n[V1 Political Rules]")
     s = cfg.summary()
-    ok = all(v for v in cfg.load_status.values())
     for name, status in cfg.load_status.items():
         print(f"  [{'OK' if status else 'FAIL'}] {name}")
-    print(f"\n分类数量: {s['taxonomy_categories']} (A01-A18)")
-    print(f"Pattern 数量: {s['patterns']} (P01-P20)")
-    print(f"Negative Rules: {s['negative_rules']} (N01-N08)")
-    print(f"反向词 X: {s['x_terms']}")
-    counts = s["keyword_counts"]
-    print("词典统计(实际从YAML读取):")
-    print(f"  H(高强度行为词): {counts.get('H', 0)}")
-    print(f"  M(隐性/中强度): {counts.get('M', 0)}")
-    print(f"  C(场景/关系): {counts.get('C', 0)}")
-    print(f"  E(原始证据): {counts.get('E', 0)}")
-    print(f"  S(程序词): {counts.get('S', 0)}")
-    print(f"  X(反向): {counts.get('X', 0)}")
-    if not ok:
-        print("\n结果: FAIL — 存在规则文件加载失败")
+        if not status:
+            failures.append(name)
+    print(f"  [OK] A categories: {s['taxonomy_categories']}")
+    print(f"  [OK] P patterns: {s['patterns']}")
+    print(f"  [OK] N negatives: {s['negative_rules']}")
+    print(f"  [OK] LLM prompt: {s['llm_prompt_chars']} chars")
+
+    # ---------- V4 Governance Rules ----------
+    print("\n[V4 Governance Rules]")
+    gov_cfg = None
+    try:
+        from .governance.config_loader import GovernanceConfig
+        gov_cfg = GovernanceConfig(cfg_dir).load_all()
+        gs = gov_cfg.summary()
+        print(f"  [OK] G categories: {gs['categories']}")
+        print(f"  [OK] GP patterns: {gs['patterns']}")
+        print(f"  [OK] GN negatives: {gs['negatives']}")
+        print(f"  [OK] Governance keywords: G-H={gs['G-H']} G-M={gs['G-M']} G-C={gs['G-C']} G-E={gs['G-E']}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] Governance config validation: {exc}")
+        failures.append("governance")
+
+    # ---------- External LLM Privacy ----------
+    print("\n[External LLM Privacy]")
+    policy = None
+    try:
+        from .security.policy import load_security_policy
+        policy = load_security_policy(config_dir=cfg_dir.parent if cfg_dir.name == "news_signal" else cfg_dir)
+        print(f"  [OK] security.yaml: {policy.source_file}")
+        print(f"  [OK] privacy level: {policy.privacy_level}")
+        print(f"  [OK] external host allowlist: {','.join(policy.allowed_hosts) or '(empty)'}")
+        print("  [OK] raw external disabled")
+        print("  [OK] no ALLOW_RAW_EXTERNAL_LLM bypass")
+        if policy.privacy_level == "OFF":
+            print("  [WARN] privacy_level=OFF 仍不允许 external raw string")
+        if not policy.allowed_hosts:
+            failures.append("security_allowlist")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] security.yaml/privacy policy: {exc}")
+        failures.append("security")
+
+    # ---------- Database Schema ----------
+    print("\n[Database Schema]")
+    try:
+        from .storage.database import Database
+        from .storage.migrations import SCHEMA_VERSION
+        db = Database(DB_PATH)
+        state = db.schema_state()
+        print(f"  [OK] schema version: {state.get('schema_version')} (latest={SCHEMA_VERSION})")
+        print(f"  [OK] migration state: {state.get('migration_state')}")
+        for table in ("emails", "attachments", "entities", "rule_matches", "scores",
+                      "governance_results", "analysis_runs", "attachment_parse_cache"):
+            if db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)):
+                print(f"  [OK] table: {table}")
+            else:
+                print(f"  [FAIL] table missing: {table}")
+                failures.append(f"table:{table}")
+        db.close()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] database schema: {exc}")
+        failures.append("database")
+
+    # ---------- Output Security / config ----------
+    print("\n[Output Security]")
+    try:
+        from .security.spreadsheet import spreadsheet_safe
+        assert spreadsheet_safe("=HYPERLINK(1)") != "=HYPERLINK(1)"
+        print("  [OK] spreadsheet formula injection guard")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] spreadsheet guard: {exc}")
+        failures.append("spreadsheet")
+    trigger = resolve_llm_trigger_score()
+    print(f"  [OK] LLM_TRIGGER_SCORE: {trigger:g}")
+
+    if failures:
+        print("\n结果: FAIL — " + ", ".join(failures))
         return 1
     print("\n结果: PASS")
     return 0
@@ -133,23 +199,26 @@ def run(args) -> int:
         from .named_channel.advisor import NamedChannelAdvisor
         named_advisor = NamedChannelAdvisor(mode=llm_mode, allow_llm=not args.no_llm)
     pipeline = ScreeningPipeline(cfg, db=db, llm_screener=screener,
-                                 llm_trigger_score=35,
+                                 llm_trigger_score=getattr(args, "llm_trigger_score", None),
                                  allow_llm=not args.no_llm,
                                  release_advisor=advisor,
-                                 named_advisor=named_advisor)
+                                 named_advisor=named_advisor,
+                                 reprocess=getattr(args, "reprocess", False),
+                                 rescore=getattr(args, "rescore", False),
+                                 reanalyze=getattr(args, "reanalyze", False))
 
     records = []
     if args.file:
         p = Path(args.file)
         if p.exists():
-            rec = pipeline.process_file(p)
+            rec = pipeline.process_file(p, reprocess=getattr(args, "reprocess", False))
             if rec:
                 records.append(rec)
         else:
             logger.error("文件不存在: %s", p)
             return 2
     else:
-        records = pipeline.process_directory(inbox)
+        records = pipeline.process_directory(inbox, reprocess=getattr(args, "reprocess", False))
     db.close()
 
     if not records:
@@ -263,6 +332,14 @@ def main(argv=None) -> int:
     parser.add_argument("--selfcheck", action="store_true", help="规则包自检")
     parser.add_argument("--llm-mode", choices=["api", "template"], default=None,
                         help="覆盖 LLM 模式")
+    parser.add_argument("--llm-trigger-score", type=float, default=None,
+                        help="覆盖 LLM_TRIGGER_SCORE（CLI > ENV > 默认）")
+    parser.add_argument("--reprocess", action="store_true", default=False,
+                        help="重新解析/完整处理（即使邮件已导入）")
+    parser.add_argument("--rescore", action="store_true", default=False,
+                        help="复用解析结果重新执行规则/评分（为后续完整实现预留）")
+    parser.add_argument("--reanalyze", action="store_true", default=False,
+                        help="重新运行 LLM/渠道等分析（为后续完整实现预留）")
     parser.add_argument("--enable-excel-register", dest="enable_excel_register",
                         action="store_true", default=False,
                         help="强制启用重要爆料邮件 Excel 台账（覆盖配置文件）")

@@ -102,13 +102,17 @@ class ReleaseAdvisor:
 
     # ------------------------------------------------------------------
     def advise(self, email_id: str, rule=None, llm=None, score=None,
-               doc=None, text: str = "") -> ReleaseRecommendation:
+               doc=None, text: str = "", governance_categories=None,
+               unified=None) -> ReleaseRecommendation:
         """完整链路：构建特征 -> 规则层 -> LLM -> 融合."""
-        f = self.builder.build(email_id, rule, llm, score, doc)
+        f = self.builder.build(email_id, rule, llm, score, doc,
+                               governance_categories=governance_categories,
+                               unified=unified)
         rec = self.engine.recommend(f)
         if self.allow_llm and self.client is not None:
             try:
-                llm_out = self._ask_llm(f, rec, text or (doc.combined_text if doc else ""))
+                # 外部 LLM 由 _ask_llm 内部构造 SafePayloadBuilder；不得使用原始正文。
+                llm_out = self._ask_llm(f, rec, text or "", unified=unified)
                 rec = self._merge(f, rec, llm_out)
             except Exception as e:  # noqa: BLE001
                 logger.warning("渠道顾问 LLM 调用失败，回退规则结果: %s", e)
@@ -125,24 +129,33 @@ class ReleaseAdvisor:
 
     # ------------------------------------------------------------------
     def _ask_llm(self, f: ReleaseDecisionFeatures, rec: ReleaseRecommendation,
-                 text: str) -> dict:
-        user = []
-        user.extend(_feature_lines(f))
-        user.extend(_rules_context(self.engine, f, rec))
-        user.append("\n=== 线索材料（脱敏摘要） ===")
-        user.append(truncate_for_llm(mask_sensitive(text or f.source_text or ""), 9000))
-        user.append("\n请按系统提示词输出 JSON（不要多余文字）。")
-        content = "\n".join(user)
-        try:
+                 text: str, unified=None) -> dict:
+        # External LLM 只能接收 SafeLLMPayload；LOCAL 才允许较完整文本模式。
+        is_external = bool(getattr(self.client, "is_external", False))
+        if is_external:
+            from ..security.payload_builder import SafePayloadBuilder
+            policy = getattr(self.client, "policy", None)
+            safe = SafePayloadBuilder(policy=policy).build_v2(
+                features=f, recommendation=rec, unified=unified)
+            out = self.client.chat_safe(self._prompt, safe, retries=1)
+        else:
+            user = []
+            user.extend(_feature_lines(f))
+            user.extend(_rules_context(self.engine, f, rec))
+            user.append("\n=== 线索材料（脱敏摘要） ===")
+            user.append(truncate_for_llm(mask_sensitive(text or f.source_text or ""), 9000))
+            user.append("\n请按系统提示词输出 JSON（不要多余文字）。")
+            content = "\n".join(user)
             out = self.client.chat_json(self._prompt, content, retries=1)
-        except Exception:  # noqa: BLE001
-            raise
         ok, cleaned, errors = release_schema.validate_result(out)
         if not ok:
-            # 重试一次
-            out2 = self.client.chat_json(
-                self._prompt, content + "\n（上次输出不合 schema：" + "；".join(errors[:3]) + "）",
-                retries=1)
+            # 重试一次：External 仍只允许 SafeLLMPayload，绝不回退 raw。
+            if is_external:
+                out2 = self.client.chat_safe(self._prompt, safe, retries=1)
+            else:
+                out2 = self.client.chat_json(
+                    self._prompt, content + "\n（上次输出不合 schema：" + "；".join(errors[:3]) + "）",
+                    retries=1)
             ok, cleaned, errors = release_schema.validate_result(out2)
             if not ok:
                 raise LLMError(f"渠道输出校验失败: {errors[:5]}")

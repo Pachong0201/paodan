@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List
 
 from ..models import ScreeningRecord
+from ..security.spreadsheet import spreadsheet_safe_row
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,8 @@ CSV_COLUMNS = [
     # 具名渠道推荐（V3）
     "top_media", "top_disclosure_actor", "top_amplifier",
     "top_formal_channel", "named_channel_reason",
+    # V4.1 双轨统一信号
+    "primary_track", "governance_categories", "governance_score",
 ]
 
 
@@ -69,6 +72,7 @@ def export_csv(records: List[ScreeningRecord], path: str | Path,
             if rec.score is None or rec.email is None or rec.score.final_score < min_priority_value:
                 continue
             llm = rec.llm
+            rule = rec.rule
             rel = rec.release_recommendation or {}
             named = rec.named_channel_recommendation or {}
             row = {
@@ -77,9 +81,11 @@ def export_csv(records: List[ScreeningRecord], path: str | Path,
                 "subject": rec.email.subject or "",
                 "sender": rec.email.sender or "",
                 "date": rec.email.date or "",
-                "target_persons": "、".join((llm.target_persons if llm else []) or rec.rule.target_persons_found or []),
-                "categories": "、".join((llm.categories if llm else []) or rec.rule.matched_categories or []),
-                "matched_patterns": "/".join(p.pattern_id for p in (rec.rule.matched_patterns if rec.rule else [])),
+                "target_persons": "、".join((llm.target_persons if llm else []) or
+                                           (rule.target_persons_found if rule else []) or []),
+                "categories": "、".join((llm.categories if llm else []) or
+                                       (rule.matched_categories if rule else []) or []),
+                "matched_patterns": "/".join(p.pattern_id for p in (rule.matched_patterns if rule else [])),
                 "one_sentence_summary": (llm.one_sentence_summary if llm else "") or rec.summary_zh,
                 "reason_for_attention": (llm.reason_for_attention if llm else "") or "",
                 "source_path": rec.email.source_path or "",
@@ -93,8 +99,12 @@ def export_csv(records: List[ScreeningRecord], path: str | Path,
                 "top_amplifier": _top_name(named.get("recommended_amplifiers") or []),
                 "top_formal_channel": _top_name(named.get("recommended_formal_channels") or []),
                 "named_channel_reason": _named_top_reason(named),
+                "primary_track": (rec.unified_signals.primary_track
+                                  if getattr(rec, "unified_signals", None) is not None else ""),
+                "governance_categories": "、".join(rec.governance_categories or []),
+                "governance_score": float(rec.governance_score or 0.0),
             }
-            w.writerow(row)
+            w.writerow(spreadsheet_safe_row(row))
             written += 1
     logger.info("CSV 导出 %d 条 -> %s", written, path)
     return written

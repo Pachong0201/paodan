@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+from ..security.spreadsheet import spreadsheet_safe  # noqa: E402
+
 try:
     from openpyxl import Workbook, load_workbook
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -816,9 +818,10 @@ class ImportantEmailRegister:
             "治理民生类别": _join_list(_get(record, "governance_categories", []) or []),
             "治理民生评分": str(_get(record, "governance_score", "") or ""),
         }
-        # 保证所有 HEADERS 都有键
+        # 保证所有 HEADERS 都有键，并对邮件可控字段做 formula injection 防护。
         for h in HEADERS:
             row.setdefault(h, "")
+            row[h] = spreadsheet_safe(row[h])
         return row
 
     # ------------------------------------------------------------------

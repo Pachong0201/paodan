@@ -28,8 +28,20 @@ class AttachmentDoc:
     extraction_status: str = "success"  # success/partial/failed/skipped(无OCR)
     warnings: list = field(default_factory=list)
     sha256: str = ""
+    source_sha256: str = ""          # 原始附件 bytes SHA256（附件身份）
+    text_sha256: str = ""            # 抽取文本标准化后的 SHA256
+    parser_version: str = "attachment-parser-v1"
+    ocr_version: str = "ocr-v1"
     ocr_used: bool = False
-    content_hash: str = ""           # 文本内容哈希，用于跨邮件去重
+    content_hash: str = ""           # 旧字段：兼容文本内容哈希，不再作为唯一附件身份
+
+    @property
+    def source_hash(self) -> str:
+        return self.source_sha256
+
+    @property
+    def text_hash(self) -> str:
+        return self.text_sha256
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -49,9 +61,27 @@ class EmailDocument:
     original_text: str = ""          # 原始全文（含附件文本）
     normalized_text: str = ""        # 繁转简+标准化的全文
     body_hash: str = ""
+    raw_sha256: str = ""             # 原始 EML bytes SHA256（无 Message-ID 时主键）
+    normalized_message_id: str = ""  # 归一化 Message-ID（ingestion identity 优先）
     attachments: list = field(default_factory=list)  # AttachmentDoc
     combined_text: str = ""          # 全文（body+所有附件文本拼接）
     source_path: str = ""
+
+    @property
+    def raw_eml_sha256(self) -> str:
+        return self.raw_sha256
+
+    @property
+    def email_source_hash(self) -> str:
+        return self.raw_sha256
+
+    @property
+    def ingestion_identity(self) -> str:
+        if self.normalized_message_id:
+            return f"MID:{self.normalized_message_id}"
+        if self.raw_sha256:
+            return f"RAW:{self.raw_sha256}"
+        return self.email_id
 
     @property
     def all_text(self) -> str:
@@ -192,6 +222,10 @@ class FinalScore:
     stage_adjustment: float = 0.0
     negative_adjustment: float = 0.0
     evidence_stage: str = "E1"
+    # V4.1 统一双轨融合结果
+    governance_score: float = 0.0
+    primary_track: str = "NONE"
+    unified_reason: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -208,7 +242,9 @@ class ScreeningRecord:
     verification_targets: list = field(default_factory=list)
     known_news: Optional[dict] = None
     error: str = ""
-    schema_version: str = "1.0"
+    schema_version: str = "4.1"
+    # V4.1 统一双轨信号（UnifiedSignalSet；Pipeline 在 V1+V4 后填充）
+    unified_signals: Optional[object] = None
     # V2 首发渠道推荐（可选，S/A/B 经 Release Advisor 后填充）
     release_recommendation: Optional[dict] = None
     # V3 具名渠道推荐（可选，S/A/B 经 Named Channel Advisor 后填充）
@@ -220,6 +256,9 @@ class ScreeningRecord:
     governance_score: float = 0.0
     governance_priority: str = ""
     governance_dims: dict = field(default_factory=dict)
+    governance_negatives: list = field(default_factory=list)
+    governance_enhance: dict = field(default_factory=dict)
+    governance_details: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = {
@@ -246,6 +285,10 @@ class ScreeningRecord:
         d["verification_targets"] = self.verification_targets
         if self.known_news is not None:
             d["known_news"] = self.known_news
+        if self.unified_signals is not None:
+            d["unified_signals"] = (self.unified_signals.to_dict()
+                                    if hasattr(self.unified_signals, "to_dict")
+                                    else self.unified_signals)
         if self.release_recommendation is not None:
             d["release_recommendation"] = self.release_recommendation
         if self.named_channel_recommendation is not None:
@@ -264,6 +307,10 @@ class ScreeningRecord:
             d["governance_score"] = float(self.governance_score or 0)
             d["governance_priority"] = self.governance_priority or ""
             d["governance_dims"] = dict(self.governance_dims or {})
+            d["governance_negatives"] = [n.to_dict() if hasattr(n, "to_dict") else n
+                                         for n in (self.governance_negatives or [])]
+            d["governance_enhance"] = dict(self.governance_enhance or {})
+            d["governance_details"] = list(self.governance_details or [])
         return d
 
     def to_jsonl_line(self) -> str:

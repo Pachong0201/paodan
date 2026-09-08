@@ -39,6 +39,7 @@ TESSERACT_CMD = os.getenv("TESSERACT_CMD", "tesseract")
 
 # ---------- 流水线阈值（可配置） ----------
 LLM_TRIGGER_SCORE = float(os.getenv("LLM_TRIGGER_SCORE", "35"))
+RULE_TRIGGER_EXTRA = bool(os.getenv("RULE_TRIGGER_EXTRA", "1").strip().lower() not in ("0", "false", "no"))
 MIN_PRIORITY = os.getenv("MIN_PRIORITY", "D")        # 报告最低输出优先级
 
 # ---------- 重要爆料邮件 Excel 台账 V3.1（可配置） ----------
@@ -75,118 +76,173 @@ REVIEW_QUEUE_WRITE_SIDECAR = _env_bool("REVIEW_QUEUE_WRITE_SIDECAR", True)
 REVIEW_QUEUE_EXTRACT_ATTACHMENTS = _env_bool("REVIEW_QUEUE_EXTRACT_ATTACHMENTS", False)
 
 
-def load_review_queue_config(config_dir: Path | None = None) -> dict:
-    """合并 config/review_queue.yaml + .env 默认，返回 review_queue 配置 dict。"""
-    cfg = {
-        "enabled": REVIEW_QUEUE_ENABLED,
-        "path": str(REVIEW_QUEUE_PATH),
-        "min_score": REVIEW_QUEUE_MIN_SCORE,
-        "priorities": list(REVIEW_QUEUE_PRIORITIES),
-        "split_by_priority": REVIEW_QUEUE_SPLIT_BY_PRIORITY,
-        "copy_original_eml": REVIEW_QUEUE_COPY_ORIGINAL,
-        "move_original": REVIEW_QUEUE_MOVE_ORIGINAL,
-        "deduplicate": REVIEW_QUEUE_DEDUPLICATE,
-        "sync_priority_changes": REVIEW_QUEUE_SYNC_PRIORITY,
-        "write_sidecar_json": REVIEW_QUEUE_WRITE_SIDECAR,
-        "extract_attachments": REVIEW_QUEUE_EXTRACT_ATTACHMENTS,
-    }
+def _fresh_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in ("0", "false", "no", "off", "")
+
+
+def _fresh_list(name: str, default: list[str]) -> list[str]:
+    raw = os.getenv(name)
+    if raw is None:
+        return list(default)
+    return [x.strip().upper() for x in raw.split(",") if x.strip()]
+
+
+def _read_yaml_section(path: Path, section_name: str) -> dict:
     try:
         import yaml as _yaml
-        base = Path(config_dir) if config_dir else CONFIG_DIR
-        for cand in (base / "review_queue.yaml", base / "news_signal" / "review_queue.yaml"):
-            if cand.exists():
-                data = _yaml.safe_load(cand.read_text(encoding="utf-8")) or {}
-                section = data.get("review_queue", data) if isinstance(data, dict) else {}
-                if not isinstance(section, dict):
-                    break
-                for k in ("enabled", "split_by_priority", "copy_original_eml",
-                          "move_original", "deduplicate", "sync_priority_changes",
-                          "write_sidecar_json", "extract_attachments"):
-                    if k in section:
-                        cfg[k] = bool(section[k])
-                if "path" in section and section["path"]:
-                    cfg["path"] = str(section["path"])
-                if "min_score" in section:
-                    try:
-                        cfg["min_score"] = float(section["min_score"])
-                    except (TypeError, ValueError):
-                        pass
-                if "priorities" in section and section["priorities"]:
-                    cfg["priorities"] = [str(p).strip().upper() for p in section["priorities"] if str(p).strip()]
-                break
+        if not path.exists():
+            return {}
+        data = _yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            return {}
+        section = data.get(section_name, data)
+        return section if isinstance(section, dict) else {}
     except Exception:
-        pass
-    # .env 显式设置优先于 yaml：若环境变量存在则覆盖 yaml 值
-    try:
-        import os as _os
-        if _os.getenv("REVIEW_QUEUE_ENABLED") is not None:
-            cfg["enabled"] = REVIEW_QUEUE_ENABLED
-        if _os.getenv("REVIEW_QUEUE_PATH") is not None:
-            cfg["path"] = str(REVIEW_QUEUE_PATH)
-        if _os.getenv("REVIEW_QUEUE_MIN_SCORE") is not None:
-            cfg["min_score"] = REVIEW_QUEUE_MIN_SCORE
-        if _os.getenv("REVIEW_QUEUE_PRIORITIES") is not None:
-            cfg["priorities"] = list(REVIEW_QUEUE_PRIORITIES)
-        if _os.getenv("REVIEW_QUEUE_SPLIT_BY_PRIORITY") is not None:
-            cfg["split_by_priority"] = REVIEW_QUEUE_SPLIT_BY_PRIORITY
-        if _os.getenv("REVIEW_QUEUE_COPY_ORIGINAL") is not None:
-            cfg["copy_original_eml"] = REVIEW_QUEUE_COPY_ORIGINAL
-        if _os.getenv("REVIEW_QUEUE_MOVE_ORIGINAL") is not None:
-            cfg["move_original"] = REVIEW_QUEUE_MOVE_ORIGINAL
-        if _os.getenv("REVIEW_QUEUE_DEDUPLICATE") is not None:
-            cfg["deduplicate"] = REVIEW_QUEUE_DEDUPLICATE
-        if _os.getenv("REVIEW_QUEUE_SYNC_PRIORITY") is not None:
-            cfg["sync_priority_changes"] = REVIEW_QUEUE_SYNC_PRIORITY
-        if _os.getenv("REVIEW_QUEUE_WRITE_SIDECAR") is not None:
-            cfg["write_sidecar_json"] = REVIEW_QUEUE_WRITE_SIDECAR
-        if _os.getenv("REVIEW_QUEUE_EXTRACT_ATTACHMENTS") is not None:
-            cfg["extract_attachments"] = REVIEW_QUEUE_EXTRACT_ATTACHMENTS
-    except Exception:
-        pass
-    return cfg
+        return {}
 
 
-def load_excel_register_config(config_dir: Path | None = None) -> dict:
-    """合并 config/excel_register.yaml + .env 默认，返回 excel_register 配置 dict。"""
-    cfg = {
-        "enabled": EXCEL_REGISTER_ENABLED,
-        "path": str(EXCEL_REGISTER_PATH),
-        "min_score": EXCEL_REGISTER_MIN_SCORE,
-        "priorities": list(EXCEL_REGISTER_PRIORITIES),
-        "backup_before_batch": EXCEL_REGISTER_BACKUP_BEFORE_BATCH,
+def merge_config_precedence(defaults: dict, yaml_values: dict, env_values: dict,
+                            cli_values: dict | None = None) -> dict:
+    """统一优先级：代码默认 < YAML < ENV < CLI。"""
+    out = dict(defaults)
+    out.update({k: v for k, v in (yaml_values or {}).items() if v is not None})
+    out.update({k: v for k, v in (env_values or {}).items() if v is not None})
+    out.update({k: v for k, v in (cli_values or {}).items() if v is not None})
+    return out
+
+
+def load_review_queue_config(config_dir: Path | None = None, cli_overrides: dict | None = None) -> dict:
+    """合并 review_queue.yaml + ENV，优先级：默认 < YAML < ENV。"""
+    defaults = {
+        "enabled": True,
+        "path": str(DATA_DIR / "review_queue"),
+        "min_score": 60.0,
+        "priorities": ["S", "A", "B"],
+        "split_by_priority": True,
+        "copy_original_eml": True,
+        "move_original": False,
+        "deduplicate": True,
+        "sync_priority_changes": True,
+        "write_sidecar_json": True,
+        "extract_attachments": False,
     }
-    try:
-        import yaml as _yaml
-        base = Path(config_dir) if config_dir else CONFIG_DIR
-        for cand in (base / "excel_register.yaml", base / "news_signal" / "excel_register.yaml"):
-            if cand.exists():
-                data = _yaml.safe_load(cand.read_text(encoding="utf-8")) or {}
-                section = data.get("excel_register", data) if isinstance(data, dict) else {}
-                if not isinstance(section, dict):
-                    break
-                if "enabled" in section:
-                    cfg["enabled"] = bool(section["enabled"])
-                if "path" in section and section["path"]:
-                    cfg["path"] = str(section["path"])
-                if "min_score" in section:
-                    try:
-                        cfg["min_score"] = float(section["min_score"])
-                    except (TypeError, ValueError):
-                        pass
-                if "priorities" in section and section["priorities"]:
-                    cfg["priorities"] = [str(p).strip().upper() for p in section["priorities"] if str(p).strip()]
-                if "backup_before_batch" in section:
-                    cfg["backup_before_batch"] = bool(section["backup_before_batch"])
-                break
-    except Exception:
-        pass
-    # .env 显式设置优先于 yaml（若环境变量被显式设置则已体现在 EXCEL_* 默认中）
-    # 此处不再二次覆盖，保持 cfg 为 yaml+env 合并结果。
-    return cfg
+    base = Path(config_dir) if config_dir else CONFIG_DIR
+    yaml_values = _read_yaml_section(base / "review_queue.yaml", "review_queue")
+    yaml_clean = {}
+    bool_keys = ("enabled", "split_by_priority", "copy_original_eml", "move_original",
+                 "deduplicate", "sync_priority_changes", "write_sidecar_json",
+                 "extract_attachments")
+    for k in bool_keys:
+        if k in yaml_values:
+            yaml_clean[k] = bool(yaml_values[k])
+    if yaml_values.get("path"):
+        yaml_clean["path"] = str(yaml_values["path"])
+    if "min_score" in yaml_values:
+        try:
+            yaml_clean["min_score"] = float(yaml_values["min_score"])
+        except (TypeError, ValueError):
+            pass
+    if yaml_values.get("priorities"):
+        yaml_clean["priorities"] = [str(p).strip().upper() for p in yaml_values["priorities"] if str(p).strip()]
+    env_values = {}
+    env_map = {
+        "REVIEW_QUEUE_ENABLED": "enabled", "REVIEW_QUEUE_PATH": "path",
+        "REVIEW_QUEUE_MIN_SCORE": "min_score", "REVIEW_QUEUE_PRIORITIES": "priorities",
+        "REVIEW_QUEUE_SPLIT_BY_PRIORITY": "split_by_priority",
+        "REVIEW_QUEUE_COPY_ORIGINAL": "copy_original_eml",
+        "REVIEW_QUEUE_MOVE_ORIGINAL": "move_original",
+        "REVIEW_QUEUE_DEDUPLICATE": "deduplicate",
+        "REVIEW_QUEUE_SYNC_PRIORITY": "sync_priority_changes",
+        "REVIEW_QUEUE_WRITE_SIDECAR": "write_sidecar_json",
+        "REVIEW_QUEUE_EXTRACT_ATTACHMENTS": "extract_attachments",
+    }
+    for env_name, key in env_map.items():
+        if os.getenv(env_name) is None:
+            continue
+        if key == "path":
+            env_values[key] = os.getenv(env_name)
+        elif key == "min_score":
+            try:
+                env_values[key] = float(os.getenv(env_name))
+            except ValueError:
+                pass
+        elif key == "priorities":
+            env_values[key] = _fresh_list(env_name, defaults["priorities"])
+        else:
+            env_values[key] = _fresh_bool(env_name, defaults[key])
+    return merge_config_precedence(defaults, yaml_clean, env_values, cli_overrides)
 
-RULE_TRIGGER_EXTRA = bool(os.getenv("RULE_TRIGGER_EXTRA", "1").strip() not in ("0", "false", "no"))
-# 低于阈值仍送 LLM 的条件：
-#  E 类原始证据词 >= 1 且 (实体人名或目标角色词命中) 且 具体金额存在
+
+def load_excel_register_config(config_dir: Path | None = None, cli_overrides: dict | None = None) -> dict:
+    """合并 excel_register.yaml + ENV，优先级：默认 < YAML < ENV。"""
+    defaults = {
+        "enabled": True,
+        "path": str(REPORTS_DIR / "important_email_register.xlsx"),
+        "min_score": 60.0,
+        "priorities": ["S", "A", "B"],
+        "backup_before_batch": True,
+    }
+    base = Path(config_dir) if config_dir else CONFIG_DIR
+    yaml_values = _read_yaml_section(base / "excel_register.yaml", "excel_register")
+    yaml_clean = {}
+    if "enabled" in yaml_values:
+        yaml_clean["enabled"] = bool(yaml_values["enabled"])
+    if yaml_values.get("path"):
+        yaml_clean["path"] = str(yaml_values["path"])
+    if "min_score" in yaml_values:
+        try:
+            yaml_clean["min_score"] = float(yaml_values["min_score"])
+        except (TypeError, ValueError):
+            pass
+    if yaml_values.get("priorities"):
+        yaml_clean["priorities"] = [str(p).strip().upper() for p in yaml_values["priorities"] if str(p).strip()]
+    if "backup_before_batch" in yaml_values:
+        yaml_clean["backup_before_batch"] = bool(yaml_values["backup_before_batch"])
+    env_values = {}
+    env_map = {
+        "EXCEL_REGISTER_ENABLED": ("enabled", "bool"),
+        "EXCEL_REGISTER_PATH": ("path", "str"),
+        "EXCEL_REGISTER_MIN_SCORE": ("min_score", "float"),
+        "EXCEL_REGISTER_PRIORITIES": ("priorities", "list"),
+        "EXCEL_REGISTER_BACKUP": ("backup_before_batch", "bool"),
+    }
+    for env_name, (key, kind) in env_map.items():
+        if os.getenv(env_name) is None:
+            continue
+        raw = os.getenv(env_name)
+        if kind == "bool":
+            env_values[key] = _fresh_bool(env_name, defaults[key])
+        elif kind == "float":
+            try:
+                env_values[key] = float(raw)
+            except ValueError:
+                pass
+        elif kind == "list":
+            env_values[key] = _fresh_list(env_name, defaults["priorities"])
+        else:
+            env_values[key] = raw
+    return merge_config_precedence(defaults, yaml_clean, env_values, cli_overrides)
+
+
+def resolve_llm_trigger_score(cli_value: float | None = None) -> float:
+    """优先级：代码默认 < ENV < CLI。"""
+    default = float(globals().get("LLM_TRIGGER_SCORE", 35.0) or 35.0)
+    env = os.getenv("LLM_TRIGGER_SCORE")
+    value = default
+    if env is not None:
+        try:
+            value = float(env)
+        except ValueError:
+            value = default
+    if cli_value is not None:
+        try:
+            value = float(cli_value)
+        except (TypeError, ValueError):
+            pass
+    return value
 
 
 def priority_min_value(p: str) -> float:

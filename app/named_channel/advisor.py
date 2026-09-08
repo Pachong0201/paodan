@@ -67,18 +67,17 @@ class NamedChannelAdvisor:
     # ------------------------------------------------------------------
     def advise(self, email_id: str, rule=None, llm=None, score=None,
                release_recommendation: Optional[dict] = None,
-               doc=None) -> NamedChannelRecommendation:
+               doc=None, governance_categories=None, unified=None) -> NamedChannelRecommendation:
         """完整链路。release_recommendation 为 V2 输出 dict。"""
         # 特征构建（复用 V2 feature builder 的特征提取能力）
         from ..release_advisor.feature_builder import ReleaseFeatureBuilder
         feat_builder = ReleaseFeatureBuilder()
-        feats = feat_builder.build(email_id, rule, llm, score, doc)
+        feats = feat_builder.build(email_id, rule, llm, score, doc,
+                                   governance_categories=governance_categories,
+                                   unified=unified)
         # location
-        text_blob = ""
-        if doc is not None and doc.combined_text:
-            text_blob = doc.combined_text
-        elif rule is not None:
-            text_blob = rule.normalized or ""
+        # location 抽取只用本地规则结果，不把正文传入 LLM 路径。
+        text_blob = (rule.normalized if rule is not None else "") or ""
         locations = detect_locations(text_blob)
 
         rel = release_recommendation or {}
@@ -109,6 +108,13 @@ class NamedChannelAdvisor:
             source_requests_anonymity=feats.source_requests_anonymity,
             has_classified=feats.has_classified_material or feats.has_anonymous_documents,
             has_anonymous_docs=feats.has_anonymous_documents)
+        # V4 Governance 专用 NC 映射尚未建立时，提供安全兜底，禁止空结果。
+        if feats.governance_categories and not any(cands.get(g) for g in
+                                                    ("media", "disclosure", "formal", "local")):
+            self.engine.governance_fallback(
+                cands, feats.governance_categories, shapes, primary_route, locations,
+                source_requests_anonymity=feats.source_requests_anonymity,
+                has_classified=feats.has_classified_material or feats.has_anonymous_documents)
         rec.rule_hits = rule_hits
         rec.candidate_count = sum(len(v) for k, v in cands.items() if k != "avoid")
 
@@ -297,7 +303,23 @@ class NamedChannelAdvisor:
             "请在候选池内排序/剔除/解释，输出 JSON。",
         ])
         try:
-            out = self.client.chat_json(self._prompt, user, retries=1)
+            if getattr(self.client, "is_external", False):
+                from ..security.payload_builder import SafePayloadBuilder
+                policy = getattr(self.client, "policy", None)
+                public_entities = []
+                for group, items in ranked.items():
+                    for h in items:
+                        public_entities.append({"entity_id": h.entity_id, "name": h.name,
+                                                "group": group, "fit_score": h.fit_score})
+                safe = SafePayloadBuilder(policy=policy).build_v3(
+                    named_recommendation=rec, features=feats,
+                    release_recommendation=rel,
+                    public_entities=public_entities,
+                    historical_case_summaries=[self._case_ref(feats.categories)])
+                # 候选池 id 必须保留；SafePayloadBuilder 只放公开实体，LLM 仍受 schema 约束。
+                out = self.client.chat_safe(self._prompt, safe, retries=1)
+            else:
+                out = self.client.chat_json(self._prompt, user, retries=1)
         except Exception:  # noqa: BLE001
             raise
         ok, cleaned, errors = validate_llm_output(out, set(rec.rule_hits))

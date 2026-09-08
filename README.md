@@ -1,4 +1,4 @@
-# 台湾政治新闻爆料邮箱智能筛选引擎 V1 + 首发渠道推荐 V2 + 具名渠道推荐 V3 + 待审查文件夹 V3.2
+# 台湾政治新闻爆料邮箱智能筛选引擎 V4.1（稳定性、安全性与双轨融合）
 
 围绕「台湾政治负面新闻标识规则库 V1.0」（`config/news_signal/`）构建的**爆料邮箱新闻线索筛选引擎**：
 从爆料邮箱材料（邮件正文 + 附件）中自动发现值得记者核查的高价值线索，输出 0-100 评分、
@@ -400,3 +400,200 @@ V3 实体库（政治人物/媒体人）通过 `config/channel_entities.yaml` �
   location 识别为粗抽（县市词表），跨辖区案件（如北高两地）不自动判断管辖。
 - V3 模板模式（未接 LLM API）下排序完全由 fit_score 决定，理由为模板化文本；
   真实 LLM 可提供更细致的语义解释与剔除判断。
+
+
+---
+
+# V4.1 Stability, Privacy & Dual-Track Unification
+
+> 本版本不新增业务类别，重点是修复数据一致性、附件串件、外部 LLM 隐私、V1/V4 语义断层、
+> 数据库持久化、配置失效、Pattern 全文拼接误报、表格公式注入，并建立可持续演进基础。
+
+## 1. 新主链
+
+```text
+EML
+ ↓
+Secure Parsing
+ ↓
+附件原始 SHA256 / Parse Cache（source_sha256 + parser_version + ocr_version）
+ ↓
+文本标准化
+ ↓
+ ┌────────────────────────┐
+ ▼                        ▼
+V1 Political Track     V4 Governance Track
+A01-A18                G01-G12
+P01-P20                GP01-GP10
+ │                        │
+ └───────────┬────────────┘
+             ▼
+      UnifiedSignalSet
+             ↓
+       Local Features
+             ↓
+  External Privacy Gateway
+             ↓
+        LLM（可选）
+             ↓
+      Unified Final Score
+             ↓
+   Summary / Verification
+             ↓
+   V2 Release Advisor
+             ↓
+   V3 Named Advisor
+             ↓
+SQLite / JSONL / CSV / Excel / Review Queue
+```
+
+V4 不再只在最后修改 `final_score`。Governance 类别、分数、Pattern、风险、核验建议会进入
+`UnifiedSignalSet`、摘要、V2 渠道语义、V3 具名候选和 SQLite `governance_results`。
+
+## 2. UnifiedSignalSet 与 primary_track
+
+统一信号模型位于 `app/signals/`，字段包括：
+
+```text
+political_categories / governance_categories
+political_patterns / governance_patterns
+political_score / governance_score
+primary_track / secondary_track
+entities / money / evidence_shapes / evidence_stage
+risk_flags / old_news / new_information
+public_interest / track_confidence / final_score / priority
+```
+
+`primary_track` 支持：
+
+```text
+POLITICAL   仅 V1 达到有效阈值
+GOVERNANCE  仅 V4 达到有效阈值
+MIXED       双方均达到有效阈值（两条轨道都保留）
+NONE        双方均弱
+```
+
+阈值集中在 `config/news_signal/unified_signals.yaml`，不散落 hardcode。
+
+## 3. External LLM Privacy Gateway
+
+生产默认：
+
+```text
+privacy_level = STRUCTURED_ONLY
+```
+
+所有 External LLM 请求必须经过：
+
+```text
+SafePayloadBuilder -> JSON serialize -> OutboundGuard final scan -> requests.post
+```
+
+External 模型当前**看不到**：
+
+```text
+原始 EML
+完整正文 / body_text / combined_text / original_text / normalized_text / html_body
+完整附件 / OCR 全文 / 原始 PDF / DOCX / XLSX / 图片
+sender 真实姓名 / sender email / recipients
+Message-ID 原文
+本机路径 / 缓存路径
+API Key / Token / Password / Secret
+银行账号 / 身份证 / 电话 / 精确住址 / 爆料源身份
+```
+
+External 可见数据只包括结构化类别、分数、Pattern、证据阶段/形态、匿名化实体、金额、
+关系链、行为/程序信号、旧闻/新增信息、风险 flags、公开候选实体和公开历史案例摘要。
+
+LOCAL 目的地（`localhost` / `127.0.0.1` / `::1`）才允许较完整文本模式；目的地只由 URL
+hostname 判断，不根据模型名、供应商名或 API Key 判断。未知公网 host、HTTP 公网地址一律 BLOCK。
+`chat_json(prompt, raw_string)` 在 EXTERNAL 目的地会 fail closed：`requests.post = 0`。
+本版本不提供 `ALLOW_RAW_EXTERNAL_LLM=1` 之类一键绕过。
+
+配置见 `config/security.yaml`；安全审计日志只写 `logs/security_audit.jsonl` 的最小字段，
+不写 payload/正文/sender 邮箱/电话/银行账号/API key/附件文本。
+
+## 4. 附件身份、Parse Cache 与去重
+
+附件身份拆分：
+
+```text
+source_sha256 = 原始附件 bytes SHA256
+text_sha256   = 抽取文本标准化后的 SHA256
+```
+
+附件缓存路径为：
+
+```text
+.attachments_cache/<email_raw_sha256>/<attachment_source_sha256>_<safe_filename>
+```
+
+同一目录下 `mail_A.eml/evidence.pdf=AAA` 与 `mail_B.eml/evidence.pdf=BBB` 解析后不会串件。
+重复附件 bytes 通过 `attachment_parse_cache(source_sha256, parser_version, ocr_version)`
+复用解析/OCR 结果，第二次不得重复 parse/OCR。
+
+## 5. Email Identity
+
+```text
+有 Message-ID:
+  email_id = MID:<sha256(normalized_message_id)>
+
+无 Message-ID:
+  email_id = RAW:<sha256(raw_eml_bytes)>
+```
+
+不再使用 `body_hash[:16]` 作为无 Message-ID 主键。同正文、不同发件人、无 Message-ID 的
+两封邮件必须生成不同 `email_id`，数据库同时保留两条。
+
+## 6. Database / Analysis Versioning / Reprocess
+
+数据库使用 `app/storage/migrations/` 自动迁移，`schema_version` 当前为 `2`；旧库启动时保留旧数据、
+补齐新表/列/索引。新增：
+
+```text
+governance_results
+analysis_runs
+attachment_parse_cache
+```
+
+一封邮件持久化使用 `with db.transaction():`，失败 rollback，禁止 emails 有、scores/governance 无
+的半成品。子表具备幂等唯一约束（attachments/entities/pattern_matches/named_channel_recommendations）。
+
+`analysis_runs` 记录 pipeline/rule pack/scoring/prompt hash、llm mode/provider/model 和结果状态。
+重复导入与 stale analysis 分开处理：已导入但规则包/prompt hash 变化时会自动重新分析。
+CLI 新增：
+
+```bash
+python -m app.main --file sample.eml --reprocess
+python -m app.main --input data/inbox/ --rescore
+python -m app.main --input data/inbox/ --reanalyze
+python -m app.main --file sample.eml --llm-trigger-score 60
+```
+
+## 7. Governance Pattern 与数值泛化
+
+GP01-GP10 的 `window` 配置为 `sentence/paragraph/context3`，默认 `allow_full_document: false`。
+只有显式 `allow_full_document: true` 才允许全文共现；不同段落分别出现 required group 不得拼接命中。
+
+`app/governance/numeric_features.py` 统一抽取 duration / frequency / affected_population /
+money_loss / complaint_count / waiting_time / deadline_pressure，支持：
+
+```text
+500户 / 约五百户 / 数百户 / 超过四百个家庭
+8天 / 八天 / 一周 / 超过一星期 / 半年 / 六个月 / 连续数月 / 多年 / 三年
+5次 / 五次 / 多次 / 反复 / 连续投诉 / 打了七次电话
+```
+
+核验建议集中在 `app/governance/verification.py`，不在 scorer 中散落。
+
+## 8. Spreadsheet Security
+
+CSV/Excel 所有邮件可控字段写文件前必须调用 `app/security/spreadsheet.py:spreadsheet_safe()`。
+字符串 trim-left 后以 `= + - @` 开头时强制作为文本，避免 Excel/CSV 公式注入。
+
+## 9. Security Notes
+
+- `tests/fixtures/` 放 synthetic 测试样本；`data/inbox/**` 默认全部忽略，公开仓库不得提交真实 `.eml`。
+- `scripts/security_scan.py` 检查 tracked files 的 API key、私密邮箱、本机路径、银行账号 canary 和 `data/` 下 `.eml`，CI 执行。
+- 自动 PII 识别不可能 100%；KnownNews 仍为 `local_stub`，未接台湾新闻数据库；匿名实体分类仍可能有误差。
+- 外部 LLM 生产调用前仍应由编辑部确认隐私策略、allowlist 与审计日志留存。

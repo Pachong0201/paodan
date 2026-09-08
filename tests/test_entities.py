@@ -50,7 +50,7 @@ def test_real_names_kept():
 
 
 def test_t01_persons_exact():
-    bodies = Path("data/inbox/news_engine_real_case_test_emails/T01_sogo_anonymous_tip.eml").read_bytes()
+    bodies = Path("tests/fixtures/synthetic_emails/T01_sogo_anonymous_tip.eml").read_bytes()
     import email
     from email.policy import default as pol
     msg = email.message_from_binary_file(__import__("io").BytesIO(bodies), policy=pol)
@@ -63,7 +63,7 @@ def test_t01_persons_exact():
 def test_t02_person_single():
     import email, io
     from email.policy import default as pol
-    raw = Path("data/inbox/news_engine_real_case_test_emails/T02_dpp_staff_harassment_tip.eml").read_bytes()
+    raw = Path("tests/fixtures/synthetic_emails/T02_dpp_staff_harassment_tip.eml").read_bytes()
     msg = email.message_from_binary_file(io.BytesIO(raw), policy=pol)
     body = "".join(p.get_content() for p in msg.walk() if not p.is_multipart() and p.get_content_disposition() != "attachment")
     got = _person_texts(body)
@@ -73,7 +73,7 @@ def test_t02_person_single():
 def test_t04_persons_and_company():
     import email, io
     from email.policy import default as pol
-    raw = Path("data/inbox/news_engine_real_case_test_emails/T04_nanfeng_contract_internal_email.eml").read_bytes()
+    raw = Path("tests/fixtures/synthetic_emails/T04_nanfeng_contract_internal_email.eml").read_bytes()
     msg = email.message_from_binary_file(io.BytesIO(raw), policy=pol)
     body = "".join(p.get_content() for p in msg.walk() if not p.is_multipart() and p.get_content_disposition() != "attachment")
     ents = extract_basic_entities(body)

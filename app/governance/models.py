@@ -71,4 +71,5 @@ class GovernanceResult:
             "governance_score": self.score,
             "governance_priority": self.priority,
             "governance_dims": self.dims,
+            "governance_details": self.details,
         }

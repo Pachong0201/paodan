@@ -40,6 +40,8 @@ class ReleaseDecisionFeatures:
     priority_level: str = "A"
     final_score: float = 0.0
     categories: List[str] = field(default_factory=list)
+    political_categories: List[str] = field(default_factory=list)
+    governance_categories: List[str] = field(default_factory=list)
     evidence_stage: str = "E1"
     evidence_shapes: List[str] = field(default_factory=list)
     # 基础事实特征
@@ -67,9 +69,14 @@ class ReleaseDecisionFeatures:
     sensitive_material: bool = False          # 兜底敏感标记（如含性骚细节/未成年/隐私）
     source_text: str = ""                     # 用于 LLM 的脱敏摘要（不落库原始材料）
 
+    @property
+    def all_categories(self) -> List[str]:
+        return list(self.categories)
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d.pop("source_text", None)
+        d["all_categories"] = list(self.categories)
         return d
 
     def signal_dict(self) -> dict:

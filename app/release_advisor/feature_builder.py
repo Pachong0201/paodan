@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from ..models import EmailDocument, FinalScore, LLMResult, RuleResult
 from ..preprocessing.normalization import to_simplified
@@ -197,12 +197,27 @@ class ReleaseFeatureBuilder:
     # ------------------------------------------------------------------
     def build(self, email_id: str, rule: Optional[RuleResult],
               llm: Optional[LLMResult], score: Optional[FinalScore],
-              doc: Optional[EmailDocument] = None) -> ReleaseDecisionFeatures:
-        cats = []
+              doc: Optional[EmailDocument] = None,
+              governance_categories: Optional[List[str]] = None,
+              unified: Any = None, **kwargs) -> ReleaseDecisionFeatures:
+        if governance_categories is None:
+            governance_categories = kwargs.get("governance_categories")
+        if unified is None:
+            unified = kwargs.get("unified") or kwargs.get("unified_signals")
+        if governance_categories is None and kwargs.get("governance") is not None:
+            governance_categories = list(getattr(kwargs.get("governance"), "categories", []) or [])
+        political_cats = []
         if llm is not None and llm.categories:
-            cats = list(llm.categories)
+            political_cats = list(llm.categories)
         elif rule is not None:
-            cats = list(rule.matched_categories)
+            political_cats = list(rule.matched_categories)
+        gov_cats = list(governance_categories or [])
+        if not gov_cats and unified is not None:
+            gov_cats = list(getattr(unified, "governance_categories", []) or [])
+        cats = []
+        for c in political_cats + gov_cats:
+            if c and c not in cats:
+                cats.append(c)
         stage = (llm.evidence_stage if llm and llm.evidence_stage else
                  (score.evidence_stage if score else "E1") or "E1")
         # LLM 自报优先级不用于决策；final_score/priority 为准
@@ -211,6 +226,8 @@ class ReleaseFeatureBuilder:
             priority_level=(score.priority if score else "B") or "B",
             final_score=float(score.final_score if score else 0.0),
             categories=cats,
+            political_categories=political_cats,
+            governance_categories=gov_cats,
             evidence_stage=stage,
             known_old_case=False,
             contains_new_information=True,
@@ -246,7 +263,7 @@ class ReleaseFeatureBuilder:
                 feats.has_first_person_testimony or "FIRST_PERSON_TESTIMONY" in shapes):
             feats.source_requests_anonymity = feats.source_requests_anonymity or \
                 not self._explicitly_public(blob)
-        feats.public_interest_established = self._public_interest(cats, blob, llm)
+        feats.public_interest_established = bool(gov_cats) or self._public_interest(cats, blob, llm)
         feats.visually_clear = self._visually_clear(shapes, blob)
         feats.quickly_verifiable = self._quickly_verifiable(shapes, cats, rule)
         feats.requires_complex_explanation = self._complex_explanation(

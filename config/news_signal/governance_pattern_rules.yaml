@@ -1,223 +1,263 @@
 version: '1.0'
 description: V4 治理投诉 Pattern GP01-GP10
 patterns:
-  - id: GP01
-    category: G01
-    name: 行政长期延宕
-    desc: 政府机关/公共服务 + 案件/申请/陈情 + 具体时间 + 仍未处理
-    required_groups:
-      - - 政府
-        - 市府
-        - 区公所
-        - 主管机关
-        - 承办
-        - 公所
-        - 1999
-        - 市长信箱
-      - - 申请
-        - 案件
-        - 陈情
-        - 补件
-        - 核定
-        - 公文
-      - - 月
-        - 天
-        - 年
-        - 持续
-        - 长期
-        - 几个月
-        - 半年
-        - 3年
-      - - 仍未处理
-        - 未处理
-        - 未回复
-        - 未核定
-        - 石沉大海
-        - 一直处理中
-    base_score: 82
-  - id: GP02
-    category: G01
-    name: 反复补件
-    required_groups:
-      - - 补件
-        - 反复补件
-        - 来回补件
-      - - 多次
-        - 反复
-        - 来回
-        - 3次
-        - 5次
-        - 6次
-    base_score: 80
-  - id: GP03
-    category: G03
-    name: 政府错误导致民众损失
-    required_groups:
-      - - 核准
-        - 已领取
-        - 审核通过
-        - 已经核准
-      - - 认定错误
-        - 审核错误
-        - 政府错误
-        - 后来称
-      - - 追缴
-        - 追回
-        - 要求返还
-        - 要求缴回
-        - 损失
-    base_score: 88
-  - id: GP04
-    category: G05
-    name: 公共资源严重不足
-    required_groups:
-      - - 公托
-        - 公幼
-        - 社宅
-        - 病床
-        - 名额
-        - 社会住宅
-      - - 抽不到
-        - 排不到
-        - 抢不到
-        - 名额不足
-        - 候补
-        - 满床
-        - 一屋难求
-      - - 200号
-        - 100号
-        - 几百
-        - 500户
-        - 连续
-        - 3年
-        - 多年
-    base_score: 84
-  - id: GP05
-    category: G08
-    name: 基础设施反复故障
-    required_groups:
-      - - 停水
-        - 停电
-        - 爆管
-        - 跳电
-      - - 同区域
-        - 同一区
-        - 整区
-        - 社区
-      - - 重复
-        - 反复
-        - 连续
-        - 5次
-        - 多次
-        - 一月
-    base_score: 86
-  - id: GP06
-    category: G01
-    name: 多次陈情无效
-    required_groups:
-      - - '1999'
-        - 市长信箱
-        - 主管机关
-        - 陈情
-        - 投诉
-        - 报案
-        - 找议员
-        - 找里长
-        - 电话
-      - - 多次
-        - 6次
-        - 7次
-        - 反复
-        - 连续
-        - 长期
-      - - 未回复
-        - 未改善
-        - 没改善
-        - 还是没改善
-        - 没消息
-        - 没进度
-        - 说法不同
-        - 每个承办说法都不同
-    base_score: 85
-  - id: GP07
-    category: G12
-    name: 群体性影响
-    required_groups:
-      - - 停水
-        - 停电
-        - 淹水
-        - 无法送件
-        - 名额不足
-        - 垃圾
-        - 补助
-        - 系统
-        - 公托
-        - 问题
-      - - 户
-        - 人
-        - 社区
-        - 学校
-        - 家长
-        - 整区
-        - 3000户
-        - 500户
-        - 几百人
-      - - 共同受影响
-        - 多人受影响
-        - 都有
-        - 整区
-        - 整个社区
-        - 影响
-    base_score: 86
-  - id: GP08
-    category: G02
-    name: 数字系统反复失败
-    required_groups:
-      - - 网站当机
-        - 系统当机
-        - 无法登入
-        - 无法送出
-        - 上传失败
-        - 验证码收不到
-        - 登入失败
-        - 系统报错
-      - - 持续
-        - 2天
-        - 反复
-        - 一直
-        - 大量
-      - - 无法
-        - 失败
-        - 截止
-    base_score: 82
-  - id: GP09
-    category: G12
-    name: 不同窗口认定不一致
-    required_groups:
-      - - 承办
-        - 窗口
-        - 县市
-        - 中央
-        - 地方
-      - - 说法不同
-        - 标准不同
-        - 结果不同
-        - 不一致
-        - 每个都不同
-    base_score: 83
-  - id: GP10
-    category: G11
-    name: 灾害通知/应变延误
-    required_groups:
-      - - 淹水
-        - 豪雨
-        - 台风
-        - 灾情
-        - 预警
-        - 撤离
-      - - 太晚
-        - 太慢
-        - 没人通知
-        - 延误
-        - 失灵
-    base_score: 84
+- id: GP01
+  category: G01
+  name: 行政长期延宕
+  desc: 政府机关/公共服务 + 案件/申请/陈情 + 具体时间 + 仍未处理
+  required_groups:
+  - - 政府
+    - 市府
+    - 区公所
+    - 主管机关
+    - 承办
+    - 公所
+    - '1999'
+    - 市长信箱
+  - - 申请
+    - 案件
+    - 陈情
+    - 补件
+    - 核定
+    - 公文
+  - - 月
+    - 天
+    - 年
+    - 持续
+    - 长期
+    - 几个月
+    - 半年
+    - 3年
+  - - 仍未处理
+    - 未处理
+    - 未回复
+    - 未核定
+    - 石沉大海
+    - 一直处理中
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 82
+- id: GP02
+  category: G01
+  name: 反复补件
+  required_groups:
+  - - 补件
+    - 反复补件
+    - 来回补件
+  - - 多次
+    - 反复
+    - 来回
+    - 3次
+    - 5次
+    - 6次
+  window:
+  - sentence
+  - paragraph
+  allow_full_document: false
+  base_score: 80
+- id: GP03
+  category: G03
+  name: 政府错误导致民众损失
+  required_groups:
+  - - 核准
+    - 已领取
+    - 审核通过
+    - 已经核准
+  - - 认定错误
+    - 审核错误
+    - 政府错误
+    - 后来称
+  - - 追缴
+    - 追回
+    - 要求返还
+    - 要求缴回
+    - 损失
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 88
+- id: GP04
+  category: G05
+  name: 公共资源严重不足
+  required_groups:
+  - - 公托
+    - 公幼
+    - 社宅
+    - 病床
+    - 名额
+    - 社会住宅
+  - - 抽不到
+    - 排不到
+    - 抢不到
+    - 名额不足
+    - 候补
+    - 满床
+    - 一屋难求
+  - - 200号
+    - 100号
+    - 几百
+    - 500户
+    - 连续
+    - 3年
+    - 多年
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 84
+- id: GP05
+  category: G08
+  name: 基础设施反复故障
+  required_groups:
+  - - 停水
+    - 停电
+    - 爆管
+    - 跳电
+  - - 同区域
+    - 同一区
+    - 整区
+    - 社区
+  - - 重复
+    - 反复
+    - 连续
+    - 5次
+    - 多次
+    - 一月
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 86
+- id: GP06
+  category: G01
+  name: 多次陈情无效
+  required_groups:
+  - - '1999'
+    - 市长信箱
+    - 主管机关
+    - 陈情
+    - 投诉
+    - 报案
+    - 找议员
+    - 找里长
+    - 电话
+  - - 多次
+    - 6次
+    - 7次
+    - 反复
+    - 连续
+    - 长期
+  - - 未回复
+    - 未改善
+    - 没改善
+    - 还是没改善
+    - 没消息
+    - 没进度
+    - 说法不同
+    - 每个承办说法都不同
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 85
+- id: GP07
+  category: G12
+  name: 群体性影响
+  required_groups:
+  - - 停水
+    - 停电
+    - 淹水
+    - 无法送件
+    - 名额不足
+    - 垃圾
+    - 补助
+    - 系统
+    - 公托
+    - 问题
+  - - 户
+    - 人
+    - 社区
+    - 学校
+    - 家长
+    - 整区
+    - 3000户
+    - 500户
+    - 几百人
+  - - 共同受影响
+    - 多人受影响
+    - 都有
+    - 整区
+    - 整个社区
+    - 影响
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 86
+- id: GP08
+  category: G02
+  name: 数字系统反复失败
+  required_groups:
+  - - 网站当机
+    - 系统当机
+    - 无法登入
+    - 无法送出
+    - 上传失败
+    - 验证码收不到
+    - 登入失败
+    - 系统报错
+  - - 持续
+    - 2天
+    - 反复
+    - 一直
+    - 大量
+  - - 无法
+    - 失败
+    - 截止
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 82
+- id: GP09
+  category: G12
+  name: 不同窗口认定不一致
+  required_groups:
+  - - 承办
+    - 窗口
+    - 县市
+    - 中央
+    - 地方
+  - - 说法不同
+    - 标准不同
+    - 结果不同
+    - 不一致
+    - 每个都不同
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 83
+- id: GP10
+  category: G11
+  name: 灾害通知/应变延误
+  required_groups:
+  - - 淹水
+    - 豪雨
+    - 台风
+    - 灾情
+    - 预警
+    - 撤离
+  - - 太晚
+    - 太慢
+    - 没人通知
+    - 延误
+    - 失灵
+  window:
+  - paragraph
+  - context3
+  allow_full_document: false
+  base_score: 84

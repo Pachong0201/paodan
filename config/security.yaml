@@ -1,0 +1,20 @@
+# V4.1 External LLM Privacy Gateway 默认配置
+# 优先级：代码默认 < 本 YAML < ENV < CLI（CLI 由 main 覆盖）
+security:
+  external_llm:
+    enabled: true
+    privacy_level: STRUCTURED_ONLY
+    allowed_hosts:
+      - api.openai.com
+    trusted_local_hosts:
+      - localhost
+      - 127.0.0.1
+      - "::1"
+    https_required: true
+    allow_safe_snippets: false
+    max_payload_chars: 12000
+    fail_closed: true
+
+  audit:
+    enabled: true
+    log_path: logs/security_audit.jsonl

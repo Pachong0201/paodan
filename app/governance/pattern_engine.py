@@ -23,6 +23,37 @@ class GovPatternEngine:
                 out.append(hit)
         return out
 
+    @staticmethod
+    def _allowed_windows(rule: dict) -> list[str]:
+        raw = rule.get("window")
+        allow_full = bool(rule.get("allow_full_document", False))
+        if raw is None:
+            # 未配置 window 时默认段落/相邻3句；只有显式 allow_full_document=true 才加 full。
+            windows = ["paragraph", "context3"] + (["full"] if allow_full else [])
+        elif isinstance(raw, list):
+            windows = [str(x) for x in raw]
+        else:
+            windows = [str(raw)]
+        out: list[str] = []
+        for w in windows:
+            if w == "full" and not allow_full:
+                continue
+            if w in ("sentence", "paragraph", "context3", "full") and w not in out:
+                out.append(w)
+        return out
+
+    @staticmethod
+    def _windows(splitter: ContextSplitter, norm: str, level: str):
+        if level == "sentence":
+            return splitter.sentences
+        if level == "paragraph":
+            return splitter.paragraphs
+        if level == "context3":
+            return splitter.windows_ctx3
+        if level == "full":
+            return [(0, len(norm), norm)]
+        return []
+
     def _match_rule(self, rule: dict, splitter: ContextSplitter, norm: str):
         specs = rule.get("required_groups") or []
         if not specs:
@@ -39,37 +70,41 @@ class GovPatternEngine:
             if found is None:
                 return None
             chosen.append(found)
-        # 窗口级别判定：优先 sentence/paragraph/context3，否则 full（组数>=2 允许全文）
-        level = "full"
-        for lvl, wins in [("sentence", splitter.sentences), ("paragraph", splitter.paragraphs),
-                          ("context3", splitter.windows_ctx3)]:
-            if not wins:
-                continue
-            for ws, we, _ in wins:
+
+        windows = self._allowed_windows(rule)
+        matched_level = ""
+        matched_snip = ""
+        for level in windows:
+            wins = self._windows(splitter, norm, level)
+            for ws, we, wtext in wins:
                 ok = True
                 for term in chosen:
-                    key = to_simplified(term)
+                    key = to_simplified(str(term))
                     pos = splitter.find(key)
                     if not any(ws <= p0 < we for p0, _ in pos):
                         ok = False
                         break
                 if ok:
-                    level = lvl
+                    matched_level = level
+                    # 证据片段取窗口内 anchor 附近
+                    anchor = to_simplified(str(chosen[0]))
+                    apos = splitter.find(anchor)
+                    if apos:
+                        p0 = apos[0][0]
+                        s = max(ws, p0 - 40)
+                        e = min(we, p0 + 100)
+                        matched_snip = "…" + norm[s:e].replace("\n", " ") + "…"
+                    else:
+                        matched_snip = "…" + wtext.replace("\n", " ")[:140] + "…"
                     break
-            if level != "full":
+            if matched_level:
                 break
-        # GP07 群体性要求更严：若仅全文共现但文本过长则仍算（已放宽，便于召回）
-        anchor = chosen[0]
-        pos = splitter.find(to_simplified(anchor))
-        snip = ""
-        if pos:
-            s = max(0, pos[0][0]-30)
-            e = min(len(norm), pos[0][1]+80)
-            snip = "…" + norm[s:e].replace("\n", " ") + "…"
+        if not matched_level:
+            return None
         return GovPatternHit(pattern_id=str(rule.get("id")),
                              category=str(rule.get("category") or "GLOBAL"),
                              name=str(rule.get("name") or ""),
                              matched_terms=chosen,
-                             evidence_snippets=[snip] if snip else [],
+                             evidence_snippets=[matched_snip] if matched_snip else [],
                              pattern_score=float(rule.get("base_score") or 80),
-                             window=level)
+                             window=matched_level)

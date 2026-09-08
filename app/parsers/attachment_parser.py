@@ -20,6 +20,26 @@ from ..preprocessing.normalization import TextCleaner
 
 logger = logging.getLogger(__name__)
 
+PARSER_VERSION = "attachment-parser-v1"
+OCR_VERSION = "tesseract-v1"
+
+
+def sha256_file(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
+    """流式读取文件 SHA256，避免大附件一次性读入内存。"""
+    import hashlib
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                h.update(chunk)
+    except OSError:
+        return ""
+    return h.hexdigest()
+
+
 SUPPORTED = {"pdf", "docx", "doc", "xlsx", "xls", "csv", "txt", "md", "jpg", "jpeg", "png", "eml"}
 
 
@@ -29,7 +49,10 @@ def parse_attachment(path: str | Path, filename: str = "", ocr_enabled: bool = T
     ext = p.suffix.lower().lstrip(".") or Path(filename).suffix.lower().lstrip(".")
     if ext == "jpeg":
         ext = "jpg"
+    source_sha = sha256_file(p)
     att = AttachmentDoc(filename=filename or p.name, file_type=ext,
+                        sha256=source_sha, source_sha256=source_sha,
+                        parser_version=PARSER_VERSION,
                         metadata={"size": p.stat().st_size if p.exists() else 0})
     try:
         if ext == "pdf":
@@ -52,14 +75,34 @@ def parse_attachment(path: str | Path, filename: str = "", ocr_enabled: bool = T
             att.warnings.append(f"不支持的附件类型: {ext}")
             att.text = ""
     except Exception as e:  # noqa: BLE001
-        logger.exception("附件解析失败 %s: %s", p, e)
+        logger.warning("附件解析失败 %s: %s", p.name, e)
         att.extraction_status = "failed"
         att.warnings.append(f"解析异常: {e}")
-    # 内容哈希（去重用）
+        # 合成/非标准扩展名兜底：若 bytes 明显是 UTF-8/UTF-16 文本，按纯文本读取，
+        # 避免测试/真实误命名附件因解析器直接失败而丢失内容。
+        if ext in ("pdf", "docx", "doc", "xlsx", "xls"):
+            try:
+                raw = p.read_bytes()
+                if b"\x00" not in raw:
+                    text = raw.decode("utf-8", errors="strict")
+                    if text and sum(ch.isprintable() or ch.isspace() for ch in text) / max(len(text), 1) > 0.85:
+                        att.text = TextCleaner.clean(text)
+                        att.extraction_status = "partial"
+                        att.warnings.append("非标准文件头，按纯文本兜底读取")
+            except Exception:  # noqa: BLE001
+                pass
+    # 文本哈希（去重/Parse Cache 版本化使用），与 source_sha256 严格分离。
     import hashlib
-    att.content_hash = hashlib.sha256((att.text or "").encode("utf-8", errors="ignore")).hexdigest()
-    if not att.text:
-        att.text = ""
+    normalized_text = TextCleaner.clean(att.text or "")
+    att.text = normalized_text
+    att.text_sha256 = hashlib.sha256(normalized_text.encode("utf-8", errors="ignore")).hexdigest()
+    # 旧字段兼容：不再作为唯一附件身份。
+    att.content_hash = att.text_sha256
+    att.ocr_version = OCR_VERSION if att.ocr_used else "none"
+    if not att.source_sha256:
+        att.source_sha256 = sha256_file(p)
+    if not att.sha256:
+        att.sha256 = att.source_sha256
     return att
 
 

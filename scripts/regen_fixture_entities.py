@@ -11,7 +11,7 @@ from email import policy
 from email.message import EmailMessage
 from pathlib import Path
 
-OUT = Path("data/inbox/news_engine_real_case_test_emails")
+OUT = Path("tests/fixtures/synthetic_emails")
 OUT.mkdir(parents=True, exist_ok=True)
 
 

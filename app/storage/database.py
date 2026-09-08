@@ -1,11 +1,13 @@
-"""SQLite 数据库：建表与基础访问。表：emails/attachments/entities/rule_matches/
-pattern_matches/llm_results/scores/review_queue."""
+"""SQLite 数据库：兼容旧库的 migration 系统 + 业务事务。"""
 from __future__ import annotations
 
 import logging
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
+
+from .migrations import SCHEMA_VERSION, apply_migrations, schema_state
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +129,9 @@ class Database:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(self.path)
         self.conn.row_factory = sqlite3.Row
+        self._in_transaction = False
         self.conn.executescript(SCHEMA)
+        self.schema_version = apply_migrations(self.conn)
         self.conn.commit()
 
     def close(self):
@@ -142,21 +146,67 @@ class Database:
     def __exit__(self, *args):
         self.close()
 
+    # ---------- 事务 ----------
+    @contextmanager
+    def transaction(self):
+        """业务事务：整封邮件持久化失败时 rollback，禁止半成品。"""
+        if self._in_transaction:
+            yield self
+            return
+        self.conn.execute("BEGIN")
+        self._in_transaction = True
+        try:
+            yield self
+        except Exception:
+            self.conn.rollback()
+            raise
+        else:
+            self.conn.commit()
+        finally:
+            self._in_transaction = False
+
+    # ---------- 基础访问 ----------
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         cur = self.conn.execute(sql, params)
-        self.conn.commit()
+        if not self._in_transaction:
+            self.conn.commit()
         return cur
 
     def executemany(self, sql: str, rows) -> sqlite3.Cursor:
         cur = self.conn.executemany(sql, rows)
-        self.conn.commit()
+        if not self._in_transaction:
+            self.conn.commit()
         return cur
 
     def query(self, sql: str, params: tuple = ()) -> list:
         return list(self.conn.execute(sql, params).fetchall())
+
+    def query_one(self, sql: str, params: tuple = ()):
+        row = self.conn.execute(sql, params).fetchone()
+        return row
 
     def exists_email(self, message_id: str, dedup_key: str) -> bool:
         row = self.conn.execute(
             "SELECT 1 FROM emails WHERE message_id=? OR dedup_key=? LIMIT 1",
             (message_id or "", dedup_key)).fetchone()
         return row is not None
+
+    def exists_identity(self, normalized_message_id: str = "", raw_sha256: str = "") -> bool:
+        if normalized_message_id:
+            row = self.conn.execute(
+                "SELECT 1 FROM emails WHERE normalized_message_id=? OR message_id=? LIMIT 1",
+                (normalized_message_id, normalized_message_id)).fetchone()
+            if row is not None:
+                return True
+        if raw_sha256:
+            row = self.conn.execute(
+                "SELECT 1 FROM emails WHERE raw_sha256=? LIMIT 1", (raw_sha256,)).fetchone()
+            if row is not None:
+                return True
+        return False
+
+    def get_email(self, email_id: str):
+        return self.conn.execute("SELECT * FROM emails WHERE email_id=?", (email_id,)).fetchone()
+
+    def schema_state(self) -> dict:
+        return schema_state(self.conn)

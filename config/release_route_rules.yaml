@@ -1,144 +1,212 @@
-# 首发渠道推荐规则 v1.0
-# Release Route Rules：配置驱动，规则引擎动态加载。
-# 覆盖 RR01-RR12 + 特征信号词典（evidence_shapes / decision features / formal mapping）。
 version: '1.0'
-
-# ---------------- 规则入口阈值 ----------------
 release_advisor_min_score: 60
-release_advisor_priorities: [S, A, B]
-
-# ---------------- 证据形态 -> 可出示性 / 可验证性 映射 ----------------
-# presentability: 是否适合直接公开展示原件（R4/R1 原件级）
-# verifiability: 是否需要核验真实性
-# sensitive: 默认敏感等级
+release_advisor_priorities:
+- S
+- A
+- B
 evidence_shapes:
-  FIRST_PERSON_TESTIMONY:    {presentable: false, verifiable: false, sensitive: true}
-  CHAT_RECORD:               {presentable: false, verifiable: true, sensitive: true}
-  AUDIO:                     {presentable: false, verifiable: true, sensitive: true}
-  VIDEO:                     {presentable: false, verifiable: true, sensitive: true}
-  PHOTO:                     {presentable: true, verifiable: true, sensitive: true}
-  BANK_RECORD:               {presentable: false, verifiable: true, sensitive: true}
-  CONTRACT:                  {presentable: true, verifiable: true, sensitive: false}
-  INTERNAL_DOCUMENT:         {presentable: false, verifiable: true, sensitive: true}
-  OFFICIAL_DOCUMENT:         {presentable: true, verifiable: true, sensitive: false}
-  PROCUREMENT_FILE:          {presentable: true, verifiable: true, sensitive: false}
-  SPREADSHEET:               {presentable: true, verifiable: true, sensitive: false}
-  DATABASE_RECORD:           {presentable: false, verifiable: true, sensitive: true}
-  ACADEMIC_DOCUMENT:         {presentable: true, verifiable: true, sensitive: false}
-  LOCATION_DATA:             {presentable: true, verifiable: true, sensitive: false}
-  CLASSIFIED_DOCUMENT:       {presentable: false, verifiable: true, sensitive: true}
-  ANONYMOUS_DOCUMENT:        {presentable: false, verifiable: true, sensitive: true}
-  MULTI_SOURCE_PACKAGE:      {presentable: false, verifiable: true, sensitive: false}
-
-# ---------------- 渠道推荐规则（RR01-RR12 + 补充 RR13/RR14） ----------------
+  FIRST_PERSON_TESTIMONY:
+    presentable: false
+    verifiable: false
+    sensitive: true
+  CHAT_RECORD:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  AUDIO:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  VIDEO:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  PHOTO:
+    presentable: true
+    verifiable: true
+    sensitive: true
+  BANK_RECORD:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  CONTRACT:
+    presentable: true
+    verifiable: true
+    sensitive: false
+  INTERNAL_DOCUMENT:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  OFFICIAL_DOCUMENT:
+    presentable: true
+    verifiable: true
+    sensitive: false
+  PROCUREMENT_FILE:
+    presentable: true
+    verifiable: true
+    sensitive: false
+  SPREADSHEET:
+    presentable: true
+    verifiable: true
+    sensitive: false
+  DATABASE_RECORD:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  ACADEMIC_DOCUMENT:
+    presentable: true
+    verifiable: true
+    sensitive: false
+  LOCATION_DATA:
+    presentable: true
+    verifiable: true
+    sensitive: false
+  CLASSIFIED_DOCUMENT:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  ANONYMOUS_DOCUMENT:
+    presentable: false
+    verifiable: true
+    sensitive: true
+  MULTI_SOURCE_PACKAGE:
+    presentable: false
+    verifiable: true
+    sensitive: false
 rules:
   RR01:
     id: RR01
     description: 性骚/性别事件第一人称实名 + 聊天/申诉材料 -> 社交平台首发，媒体独家后备
-    categories: [A11, A12]
+    categories:
+    - A11
+    - A12
     conditions:
       has_first_person_testimony: true
       source_requests_anonymity: false
-    required_shapes: [CHAT_RECORD]
+    required_shapes:
+    - CHAT_RECORD
     primary: R1
-    secondary: [R2]
+    secondary:
+    - R2
     avoid: []
-
   RR02:
     id: RR02
     description: 性骚/性别事件当事人要求匿名 -> 媒体独家，社交平台禁用
-    categories: [A11, A12]
+    categories:
+    - A11
+    - A12
     conditions:
       source_requests_anonymity: true
     primary: R2
-    secondary: [R5]
-    avoid: [R1]
-
+    secondary:
+    - R5
+    avoid:
+    - R1
   RR03:
     id: RR03
     description: A03 收贿/职务对价 + 银行流水/汇款 -> 正式检举优先；有灭证/串证风险时更强
-    categories: [A03]
-    required_shapes: [BANK_RECORD]
+    categories:
+    - A03
+    required_shapes:
+    - BANK_RECORD
     conditions:
       has_money_flow: true
       requires_complex_explanation: false
     escalation_condition:
       destruction_risk: true
     primary: R5
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 1.3
-
   RR04:
     id: RR04
     description: A06 采购 + 采购文件/招标前接触/文件版本对照 -> 深度调查，记者会后备
-    categories: [A06]
-    required_shapes: [PROCUREMENT_FILE]
+    categories:
+    - A06
+    required_shapes:
+    - PROCUREMENT_FILE
     primary: R3
-    secondary: [R4]
+    secondary:
+    - R4
     avoid: []
-
   RR05:
     id: RR05
     description: A01 学术 + 论文比对/原始论文 -> 记者会 + 学校学伦同步检举
-    categories: [A01]
-    required_shapes: [ACADEMIC_DOCUMENT]
+    categories:
+    - A01
+    required_shapes:
+    - ACADEMIC_DOCUMENT
     primary: R4
-    secondary: [R2]
+    secondary:
+    - R2
     avoid: []
     formal_referral: ACADEMIC_ETHICS
-
   RR06:
     id: RR06
     description: A08 政治献金 + 公开申报/公司标案可交叉验证 -> 深度调查，记者会后备
-    categories: [A08]
+    categories:
+    - A08
     primary: R3
-    secondary: [R4]
+    secondary:
+    - R4
     avoid: []
-
   RR07:
     id: RR07
     description: 土地/光电/环保(多公司多地块复杂资金股权) -> 深度调查 + 正式检举后备
-    categories: [A04, A05, A16]
+    categories:
+    - A04
+    - A05
+    - A16
     conditions:
       requires_complex_explanation: true
       has_money_flow: true
     primary: R3
-    secondary: [R5]
+    secondary:
+    - R5
     avoid: []
-
   RR08:
     id: RR08
     description: 私德照片/视频(公共利益成立) -> 媒体独家；不推正式检举（除非涉违法）
-    categories: [A14]
-    required_shapes: [PHOTO, VIDEO]
+    categories:
+    - A14
+    required_shapes:
+    - PHOTO
+    - VIDEO
     conditions:
       public_interest_established: true
     primary: R2
     secondary: []
-    avoid: [R5]
-
+    avoid:
+    - R5
   RR09:
     id: RR09
     description: 泄密/国安/机密材料 -> 高敏感核验，禁止社交与记者会原件展示
-    categories: [A17]
+    categories:
+    - A17
     conditions_any:
-      - {has_classified_material: true}
-      - {has_anonymous_documents: true}
+    - has_classified_material: true
+    - has_anonymous_documents: true
     primary: R6
-    secondary: [R5]
-    avoid: [R1, R4]
-
+    secondary:
+    - R5
+    avoid:
+    - R1
+    - R4
   RR10:
     id: RR10
     description: 匿名文件 + 真实性未确认 -> 高敏感核验，禁止直接社交/记者会
     conditions:
       has_anonymous_documents: true
-    required_shapes: [ANONYMOUS_DOCUMENT]
+    required_shapes:
+    - ANONYMOUS_DOCUMENT
     primary: R6
-    secondary: [R2]
-    avoid: [R1, R4]
-
+    secondary:
+    - R2
+    avoid:
+    - R1
+    - R4
   RR11:
     id: RR11
     description: 复杂关系链 + 原始文件 + 无立即司法保全需求 -> 深度调查
@@ -146,9 +214,9 @@ rules:
       requires_complex_explanation: true
       has_original_evidence: true
     primary: R3
-    secondary: [R2]
+    secondary:
+    - R2
     avoid: []
-
   RR12:
     id: RR12
     description: 证据简单 + 高度可视化 + 可快速核验 -> 提高 R4 权重（轻量加分）
@@ -159,180 +227,235 @@ rules:
       R4: 0.6
     primary: null
     secondary: []
-
   RR13:
     id: RR13
     description: 私德争议（聊天/文档形态、无照片视频、公共利益成立）-> 媒体独家核验，避免社交公审
-    categories: [A14]
+    categories:
+    - A14
     conditions:
       public_interest_established: true
     primary: R2
-    secondary: [R5]
-    avoid: [R1]
-
+    secondary:
+    - R5
+    avoid:
+    - R1
   RR14:
     id: RR14
     description: 性骚/吃案第三人检举（含申诉/聊天材料，非第一人称或未表态）-> 媒体独家核验保护当事人
-    categories: [A11, A12]
-    required_shapes: [CHAT_RECORD]
+    categories:
+    - A11
+    - A12
+    required_shapes:
+    - CHAT_RECORD
     conditions:
       has_first_person_testimony: false
     primary: R2
-    secondary: [R5]
-    avoid: [R1]
-
+    secondary:
+    - R5
+    avoid:
+    - R1
   RR15:
     id: RR15
     description: 贿选/选举动员异常 -> 正式检举优先（涉刑事），调查报道后备
-    categories: [A10]
+    categories:
+    - A10
     primary: R5
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 1.2
-
   RR16:
     id: RR16
     description: 人头助理/助理费诈领（原始薪资/提款文件）-> 调查报道，检察官告发后备
-    categories: [A02]
+    categories:
+    - A02
     primary: R3
-    secondary: [R5]
+    secondary:
+    - R5
     avoid: []
     weight: 1.0
-
   RR17:
     id: RR17
     description: 废弃物/炉碴/砂石利益（含金流/权力动作）-> 正式检举优先，调查报道后备
-    categories: [A16]
+    categories:
+    - A16
     conditions_any:
-      - {has_money_flow: true}
-      - {has_power_action: true}
+    - has_money_flow: true
+    - has_power_action: true
     primary: R5
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 1.1
-
   RR18:
     id: RR18
     description: 组织犯罪/洗钱/帮派结合政治（有组织犯罪词）-> 正式检举优先（刑事侦查优先于公开叙事）
-    categories: [A15]
+    categories:
+    - A15
     conditions:
       has_organized_crime_signal: true
     primary: R5
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 3.0
-
   RR19:
     id: RR19
     description: 个人违法（酒驾/家暴/暴力）无贪腐金流、无吃案 -> 媒体独家核验
-    categories: [A13]
+    categories:
+    - A13
     conditions:
       has_money_flow: false
     primary: R2
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 0.9
-
   RR26:
     id: RR26
     description: 个人违法 + 吃案/压案/灭证（民代找关系撤案，非性骚当事人语境）-> 正式检举优先
-    categories: [A13]
+    categories:
+    - A13
     conditions:
       has_first_person_testimony: false
     conditions_any:
-      - {retaliation_risk: true}
-      - {destruction_risk: true}
+    - retaliation_risk: true
+    - destruction_risk: true
     primary: R5
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 2.0
-
   RR20:
     id: RR20
     description: 补助/公费核销不实（公开可核文件）-> 调查报道 + 监察/记者会后备
-    categories: [A07]
+    categories:
+    - A07
     primary: R3
-    secondary: [R4]
+    secondary:
+    - R4
     avoid: []
     weight: 1.0
-
   RR21:
     id: RR21
     description: 贪腐/权力对价（金流或对价物证 + 文件可核，非复杂网络）-> 正式检举优先（涉刑事）
-    categories: [A03]
+    categories:
+    - A03
     conditions:
       requires_complex_explanation: false
     conditions_any:
-      - {has_money_flow: true}
-      - {has_power_action: true}
-    required_shapes: [BANK_RECORD, CONTRACT, INTERNAL_DOCUMENT]
+    - has_money_flow: true
+    - has_power_action: true
+    required_shapes:
+    - BANK_RECORD
+    - CONTRACT
+    - INTERNAL_DOCUMENT
     primary: R5
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 1.2
-
   RR22:
     id: RR22
     description: 跨类别复杂政商网络（土地/光电/献金/利益冲突 + 多公司/多笔资金）-> 调查报道主导
-    categories: [A03, A04, A05, A08, A09, A16]
+    categories:
+    - A03
+    - A04
+    - A05
+    - A08
+    - A09
+    - A16
     conditions:
       requires_complex_explanation: true
       has_money_flow: true
       has_organized_crime_signal: false
     primary: R3
-    secondary: [R5]
+    secondary:
+    - R5
     avoid: []
     weight: 1.6
-
   RR27:
     id: RR27
     description: 财产申报不实/差异（公开申报可对照、可视化）-> 记者会公开比对
-    categories: [A08]
+    categories:
+    - A08
     conditions:
       visually_clear: true
     primary: R4
-    secondary: [R3]
+    secondary:
+    - R3
     avoid: []
     weight: 1.2
-
   RR23:
     id: RR23
     description: 职场性骚/霸凌第一人称（录音/照片等，实名或无表态）-> 社交平台/媒体发声，保护优先
-    categories: [A11]
+    categories:
+    - A11
     conditions:
       has_first_person_testimony: true
       source_requests_anonymity: false
     primary: R1
-    secondary: [R2]
+    secondary:
+    - R2
     avoid: []
     weight: 1.0
-
   RR24:
     id: RR24
     description: 内部匿名检举（非性骚类，关说/对价语境）-> 媒体独家核验，避免社交起底
     conditions:
       source_requests_anonymity: true
     conditions_any:
-      - {has_power_action: true}
-      - {has_money_flow: true}
+    - has_power_action: true
+    - has_money_flow: true
     primary: R2
-    secondary: [R5]
-    avoid: [R1]
+    secondary:
+    - R5
+    avoid:
+    - R1
     weight: 1.4
-
   RR25:
     id: RR25
     description: 许可/监管对价（乾股/好处换许可放水）-> 正式检举优先
-    categories: [A18]
+    categories:
+    - A18
     conditions_any:
-      - {has_power_action: true}
-      - {has_money_flow: true}
+    - has_power_action: true
+    - has_money_flow: true
     primary: R5
-    secondary: [R3]
-    avoid: [R1]
+    secondary:
+    - R3
+    avoid:
+    - R1
     weight: 1.2
-
-# ---------------- 建议映射：正式机关类型 -> 建议文案 ----------------
+  RRGOV:
+    id: RRGOV
+    description: 治理民生投诉（G01-G12）→ 深度调查/地区媒体/正式主管机关核验
+    categories:
+    - G01
+    - G02
+    - G03
+    - G04
+    - G05
+    - G06
+    - G07
+    - G08
+    - G09
+    - G10
+    - G11
+    - G12
+    primary: R3
+    secondary:
+    - R2
+    - R5
+    avoid:
+    - R1
+    weight: 1.1
 formal_referral_types:
   PROSECUTOR: 检察机关
   INVESTIGATION_BUREAU: 调查机关
@@ -342,8 +465,6 @@ formal_referral_types:
   LABOR_OR_EQUALITY_AUTHORITY: 劳动/性别平等主管机关
   OTHER_REGULATOR: 其他主管机关
   NONE: 无需先行正式检举
-
-# ---------------- 类别 -> 默认正式机关（LLM/规则共用，可被证据特征改写） ----------------
 category_formal_default:
   A01: ACADEMIC_ETHICS
   A02: PROSECUTOR
@@ -352,7 +473,7 @@ category_formal_default:
   A05: INVESTIGATION_BUREAU
   A06: INVESTIGATION_BUREAU
   A07: CONTROL_YUAN
-  A08: CONTROL_YUAN          # 政治献金/财产申报主管机关为监察院（涉刑对价另由 A03/A06 提供检察官）
+  A08: CONTROL_YUAN
   A10: PROSECUTOR
   A11: LABOR_OR_EQUALITY_AUTHORITY
   A12: INTERNAL_COMPLAINT
@@ -361,19 +482,17 @@ category_formal_default:
   A16: INVESTIGATION_BUREAU
   A17: PROSECUTOR
   A18: CONTROL_YUAN
-
-# 高刑事/保全优先类别：出现即 strong 提示 formal referral
-criminal_priority_categories: [A03, A10, A13, A15]
-# 金流/灭证等特征 -> 强化 formal referral 信号
+criminal_priority_categories:
+- A03
+- A10
+- A13
+- A15
 formal_strong_features:
-  - has_money_flow
-  - destruction_risk
-  - retaliation_risk
-  - has_classified_material
-# 类别 A03/A08 等存在金流时的正式检举映射优先级
+- has_money_flow
+- destruction_risk
+- retaliation_risk
+- has_classified_material
 formal_money_flow_default: PROSECUTOR
-
-# ---------------- 风险矩阵语义（文案由代码引用，便于 yaml 统一维护） ----------------
 release_risks:
   SOURCE_EXPOSURE: 来源身份暴露风险
   PRIVACY: 个人隐私侵害风险

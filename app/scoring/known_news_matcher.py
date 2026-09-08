@@ -1,4 +1,4 @@
-"""已知新闻匹配器：V1 用本地 known_cases.jsonl 模拟（未来接新闻库）。"""
+"""已知新闻匹配器：V4.1 明确 local_stub；为 V5 预留 KnownNewsProvider 接口。"""
 from __future__ import annotations
 
 import json
@@ -12,8 +12,19 @@ from ..preprocessing.normalization import to_simplified
 logger = logging.getLogger(__name__)
 
 
-class KnownNewsMatcher:
-    """输入人物/公司/项目/事件 -> known 事件与可能的新增信息."""
+class KnownNewsProvider:
+    """V5 预留接口：未来可接台湾新闻数据库。"""
+
+    known_news_mode = "local_stub"
+
+    def match(self, persons=None, companies=None, projects=None) -> dict:  # pragma: no cover
+        raise NotImplementedError
+
+
+class JsonlKnownNewsProvider(KnownNewsProvider):
+    """基于本地 JSONL 的已知新闻 Provider（local_stub）。"""
+
+    known_news_mode = "local_stub"
 
     def __init__(self, path: Optional[Path] = None):
         self.path = Path(path) if path else KNOWN_CASES_FILE
@@ -33,7 +44,6 @@ class KnownNewsMatcher:
                     case = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                # 字段归一
                 case.setdefault("persons", [])
                 case.setdefault("companies", [])
                 case.setdefault("projects", [])
@@ -71,4 +81,15 @@ class KnownNewsMatcher:
             "known": bool(matched),
             "matched_events": matched,
             "possible_new_information": [],
+            "known_news_mode": self.known_news_mode,
+            # 明确：[] 不等于“确认没有新增信息”，只代表本地 stub 无法判断。
+            "novelty_status": "unknown",
         }
+
+
+class KnownNewsMatcher(JsonlKnownNewsProvider):
+    """兼容旧名称；当前模式为 local_stub。"""
+
+    @property
+    def mode(self) -> str:
+        return self.known_news_mode

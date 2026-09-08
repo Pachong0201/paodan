@@ -8,7 +8,8 @@ from .pattern_engine import GovPatternEngine
 from .negative_engine import GovNegativeEngine
 from .scorer import GovernanceComplaintScorer
 from .models import GovernanceResult, GovKeywordHit
-from app.preprocessing.normalization import Normalizer, to_simplified
+from app.preprocessing.normalization import Normalizer, to_simplified, TextCleaner
+import re
 from app.rules.context_window import ContextSplitter
 
 
@@ -33,7 +34,8 @@ class GovernanceEngine:
         res = GovernanceResult()
         if not email_text:
             return res
-        norm = Normalizer.normalize(email_text)
+        # 保留段落边界：Pattern 窗口必须是句/段/相邻3句，不能在全文拼接后命中。
+        norm = _normalize_governance_text(email_text)
         res.normalized = norm
         hits, hit_by_slot, enhance = self.kw.match(norm)
         patterns = self.pat.match(norm)
@@ -103,3 +105,17 @@ class GovernanceEngine:
         res.dims = dims
         res.details = details
         return res
+
+
+def _normalize_governance_text(text: str) -> str:
+    """与 Normalizer 一致，但保留段落换行供 Pattern 窗口切分。"""
+    if not text:
+        return ""
+    t = TextCleaner.clean(text)
+    t = to_simplified(t)
+    t = t.lower()
+    t = re.sub(r"[，。；：！？、（）【】《》「」『』“”‘’—…·]", " ", t)
+    t = t.translate(str.maketrans("０１２３４５６７８９ＡＢＣ", "0123456789ABC"))
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()

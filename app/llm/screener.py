@@ -91,11 +91,15 @@ class LLMScreener:
 
     # ------------------------------------------------------------------
     def screen(self, email_text: str, subject: str, sender: str,
-               rule_result: RuleResult) -> LLMResult:
-        """完整筛选；结构化校验失败自动重试一次."""
+               rule_result: RuleResult, safe_payload=None) -> LLMResult:
+        """完整筛选；结构化校验失败自动重试一次.
+
+        External API 必须传入 safe_payload；否则在 LLMClient 层也会 fail closed。
+        """
         try:
             if self.mode == "api" and self.client is not None:
-                out = self._screen_api(email_text, subject, sender, rule_result)
+                out = self._screen_api(email_text, subject, sender, rule_result,
+                                       safe_payload=safe_payload)
             else:
                 out = self._screen_template(email_text, subject, sender, rule_result)
             ok, cleaned, errors = validate_result(out)
@@ -103,7 +107,8 @@ class LLMScreener:
                 # 重试一次
                 logger.info("LLM 输出校验失败(%s)，重试…", errors[:3])
                 if self.mode == "api" and self.client is not None:
-                    out2 = self._screen_api(email_text, subject, sender, rule_result, retry=True)
+                    out2 = self._screen_api(email_text, subject, sender, rule_result,
+                                            retry=True, safe_payload=safe_payload)
                 else:
                     out2 = self._screen_template(email_text, subject, sender, rule_result)
                 ok, cleaned, errors = validate_result(out2)
@@ -139,9 +144,39 @@ class LLMScreener:
         return "\n\n".join(parts)
 
     def _screen_api(self, email_text: str, subject: str, sender: str,
-                    rule_result: RuleResult, retry: bool = False) -> dict:
+                    rule_result: RuleResult, retry: bool = False, safe_payload=None) -> dict:
+        if getattr(self.client, "is_external", False):
+            if safe_payload is None:
+                raise LLMError("external LLM requires SafeLLMPayload; raw email blocked")
+            return self.client.chat_safe(self._prompt, safe_payload, retries=1)
         user = self._build_user_content(email_text, subject, sender, rule_result, retry)
         return self.client.chat_json(self._prompt, user, retries=1)
+
+    def screen_safe(self, safe_payload, rule_result: RuleResult) -> LLMResult:
+        """External 安全筛选入口：只发送 SafeLLMPayload。"""
+        try:
+            if self.mode == "api" and self.client is not None:
+                out = self.client.chat_safe(self._prompt, safe_payload, retries=1)
+            else:
+                # 模板模式不调用网络；为了保持链路，用规则结果生成结构。
+                out = self._screen_template("", "", "", rule_result)
+            ok, cleaned, errors = validate_result(out)
+            if not ok:
+                if self.mode == "api" and self.client is not None:
+                    out2 = self.client.chat_safe(self._prompt, safe_payload, retries=1)
+                else:
+                    out2 = self._screen_template("", "", "", rule_result)
+                ok, cleaned, errors = validate_result(out2)
+                if not ok:
+                    raise LLMError(f"结构化校验两次失败: {errors[:5]}")
+            llm = LLMResult(raw=out, **{k: v for k, v in cleaned.items() if k in SCHEMA_FIELDS})
+            llm.llm_status = "ok" if self.mode == "api" else "template"
+            return llm
+        except LLMError as e:
+            logger.warning("LLM safe 筛选失败: %s", e)
+            return LLMResult(llm_status="failed", relevant=False,
+                             reason_for_attention=f"LLM 调用失败: {e}",
+                             one_sentence_summary="LLM 处理失败，待人工复核")
 
     # ---------------- 模板模式（离线确定性兜底） ----------------
     def _screen_template(self, email_text: str, subject: str, sender: str,

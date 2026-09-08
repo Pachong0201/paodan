@@ -170,6 +170,78 @@ class NamedChannelEngine:
                                      source_requests_anonymity, has_classified)
         return cands, hits
 
+    def governance_fallback(self, cands: dict, categories: List[str], shapes: List[str],
+                            primary_route: str, locations: List[str],
+                            source_requests_anonymity: bool = False,
+                            has_classified: bool = False) -> None:
+        """Governance 尚无专门 NC mapping 时的安全兜底。
+
+        不虚构实体：只从 active 公开实体库按类型/角色/分数挑选地区媒体、调查媒体、
+        公共服务类媒体、正式主管机关、民意代表/地方渠道。
+        """
+        cats = list(categories or [])
+        locs = list(locations or [])
+
+        def _sort_key(body: dict):
+            scores = body.get("scores") or {}
+            return (
+                _num(scores.get("verification"), 50),
+                _num(scores.get("source_protection"), 50),
+                _num(scores.get("complexity"), 50),
+                _num(scores.get("reach"), 50),
+            )
+
+        def _add(group: str, body: dict) -> None:
+            eid = str(body.get("id") or "")
+            if not eid or eid in cands.get(group, {}):
+                return
+            score = self.fit_score(body, cats, shapes, primary_route, locs, None)
+            cands.setdefault(group, {})[eid] = NamedChannelHit(
+                entity_id=eid, name=str(body.get("name") or eid),
+                entity_type=str(body.get("entity_type") or ""),
+                channel_group=group, fit_score=max(30.0, round(score, 1)),
+                roles=[r for r in (body.get("roles") or []) if r in self._group_roles(group)],
+                rule_ids=["GOVERNANCE_FALLBACK"], status="active")
+
+        # 1) 媒体：优先调查/深度，其次公共服务与综合媒体
+        media = [b for b in self.loader.entities.values()
+                 if b.get("status") == "active" and b.get("entity_type") in ("MEDIA", "INTERNAL_NEWSROOM")]
+        media.sort(key=_sort_key, reverse=True)
+        for b in media[:3]:
+            _add("media", b)
+
+        # 2) 正式主管机关：优先辖区匹配
+        formals = [b for b in self.loader.entities.values()
+                   if b.get("status") == "active" and b.get("entity_type") == "FORMAL_AUTHORITY"]
+        if locs:
+            formals.sort(key=lambda b: (any(l in (b.get("location_scope") or []) for l in locs),
+                                        _sort_key(b)), reverse=True)
+        else:
+            formals.sort(key=_sort_key, reverse=True)
+        for b in formals[:2]:
+            _add("formal", b)
+
+        # 3) 民意代表/揭弊人物：匿名/机密场景不兜底公开人物
+        if not (source_requests_anonymity or has_classified):
+            actors = [b for b in self.loader.entities.values()
+                      if b.get("status") == "active" and b.get("entity_type") in
+                      ("POLITICAL_ACTOR", "JOURNALIST_OR_COMMENTATOR")]
+            actors.sort(key=_sort_key, reverse=True)
+            for b in actors[:2]:
+                _add("disclosure", b)
+
+        # 4) 地方/公共服务渠道
+        locals_ = [b for b in self.loader.entities.values()
+                   if b.get("status") == "active" and b.get("entity_type") in
+                   ("LOCAL_WHISTLEBLOWER_CHANNEL", "INTERNAL_NEWSROOM")]
+        if locs:
+            locals_.sort(key=lambda b: (any(l in (b.get("location_scope") or []) for l in locs),
+                                        _sort_key(b)), reverse=True)
+        else:
+            locals_.sort(key=_sort_key, reverse=True)
+        for b in locals_[:1]:
+            _add("local", b)
+
     def _fallback_group(self, cands: dict, group: str, categories, shapes,
                         primary_route: str, locations: List[str],
                         source_requests_anonymity: bool,

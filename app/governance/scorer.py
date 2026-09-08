@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from .models import GovKeywordHit, GovPatternHit, GovNegativeMatch
 from app.preprocessing.normalization import to_simplified
+from .numeric_features import extract_numeric_features
 
 
 def priority_of(score: float) -> str:
@@ -32,6 +33,8 @@ class GovernanceComplaintScorer:
         gc = [h for h in hits if h.ktype == "G-C"]
         ge = [h for h in hits if h.ktype == "G-E"]
         cats = sorted({h.category for h in hits if h.category.startswith("G")})
+        # 归一化数字/时间/次数/金额特征：新评分优先基于 feature，旧硬编码仅作兼容兜底。
+        nf = extract_numeric_features(text_norm)
         # ---- 7 维 ----
         # 1 problem_severity 0-20
         sev = 4.0
@@ -64,6 +67,19 @@ class GovernanceComplaintScorer:
             dur = max(dur, 11.0)
         if "不是第一次" in text_norm or "已经很多次" in text_norm:
             dur = max(dur, 9.0)
+        # 泛化时间表达：8天/八天/一周/超过一星期/半年/六个月/连续数月/多年/三年
+        if nf.duration_days:
+            d = float(nf.duration_days)
+            if d >= 180:
+                dur = max(dur, 11.0)
+            elif d >= 30:
+                dur = max(dur, 9.0)
+            elif d >= 7:
+                dur = max(dur, 7.0)
+            else:
+                dur = max(dur, 6.0)
+        if nf.approximate_duration_days:
+            dur = max(dur, 8.0)
         dur = min(15.0, dur)
 
         # 3 group_impact 0-15
@@ -84,6 +100,16 @@ class GovernanceComplaintScorer:
             big = True
         if any(p.pattern_id == "GP07" for p in patterns):
             grp = max(grp, 12.0)
+        # 泛化群体规模：500户/约五百户/数百户/超过四百个家庭 均能识别
+        pop = float(nf.population_value or nf.population_lower_bound or 0)
+        if pop >= 1000:
+            grp = max(grp, 12.0)
+        elif pop >= 100:
+            grp = max(grp, 9.0)
+        elif pop > 0:
+            grp = max(grp, 7.0)
+        if nf.population_confidence >= 0.8 and pop >= 100:
+            grp = max(grp, 10.0)
         grp = min(15.0, grp)
 
         # 4 concrete_loss 0-15
@@ -97,6 +123,15 @@ class GovernanceComplaintScorer:
             loss = max(loss, 8.0)
         if "钱都被转走" in text_norm or "诈骗款" in text_norm:
             loss = max(loss, 12.0)
+        if nf.money_loss:
+            if nf.money_loss >= 100000:
+                loss = max(loss, 11.0)
+            elif nf.money_loss >= 10000:
+                loss = max(loss, 9.0)
+            elif nf.money_loss > 0:
+                loss = max(loss, 7.0)
+        if nf.waiting_time_days and nf.waiting_time_days >= 7:
+            loss = max(loss, 8.0)
         loss = min(15.0, loss)
 
         # 5 evidence_quality 0-15
@@ -123,6 +158,14 @@ class GovernanceComplaintScorer:
             fail = max(fail, 8.0)
         if any(k in text_norm for k in ["1999", "市长信箱", "陈情", "投诉", "找议员", "6次", "7次", "多次"]):
             fail = max(fail, 6.0)
+        # 泛化次数：5次/五次/多次/反复/连续投诉/打了七次电话
+        if nf.frequency:
+            if nf.frequency >= 5:
+                fail = max(fail, 7.0)
+            elif nf.frequency >= 2:
+                fail = max(fail, 6.0)
+        if nf.complaint_count:
+            fail = max(fail, min(8.0, 4.0 + nf.complaint_count))
         fail = min(10.0, fail)
 
         # 7 public_interest 0-10
@@ -135,6 +178,10 @@ class GovernanceComplaintScorer:
             pub = max(pub, 9.0)
         if cats and any(c in ("G08", "G06", "G10", "G11") for c in cats):
             pub = max(pub, 7.0)
+        if nf.affected_population and nf.affected_population >= 100:
+            pub = max(pub, 8.0)
+        if nf.deadline_pressure and nf.affected_population and nf.affected_population >= 100:
+            pub = max(pub, 9.0)
         pub = min(10.0, pub)
 
         # ---- 系统性危机维度加成（先于 dims 汇总） ----
@@ -257,6 +304,7 @@ class GovernanceComplaintScorer:
         total = max(0.0, min(100.0, round(total)))
         pri = priority_of(total)
         details = [{"dim": k, "score": v} for k, v in dims.items()]
+        details.append({"dim": "numeric_features", "score": nf.to_dict()})
         details.append({"dim": "bonus", "score": round(bonus, 1)})
         details.append({"dim": "negative_delta", "score": round(delta, 1)})
         return float(total), pri, dims, details

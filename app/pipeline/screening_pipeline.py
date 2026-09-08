@@ -1,17 +1,26 @@
-"""端到端筛选流水线：EML -> 解析 -> 实体 -> 词典 -> Pattern -> Negative -> LLM -> 评分 -> 队列."""
+"""端到端筛选流水线：EML -> Secure Parsing -> 附件哈希/Parse Cache -> V1+V4 -> UnifiedSignalSet
+-> Local Features -> Privacy Gateway -> LLM(optional) -> Unified Final Score -> Summary/Verification
+-> V2/V3 -> SQLite/JSONL/CSV/Excel/Review Queue。
+"""
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional
 
-from ..config import (DATA_DIR, LLM_ENABLED, LLM_TRIGGER_SCORE, RULE_TRIGGER_EXTRA,
-                      PROCESSED_DIR)
+from ..config import (DATA_DIR, LLM_BASE_URL, LLM_ENABLED, LLM_MODEL, PROCESSED_DIR,
+                      RULE_TRIGGER_EXTRA, resolve_llm_trigger_score)
+from ..governance.verification import verification_targets_for
 from ..llm.screener import LLMScreener
 from ..models import (AttachmentDoc, EmailDocument, FinalScore, LLMResult,
                       RuleResult, ScreeningRecord)
 from ..parsers import parse_attachment, parse_eml
+from ..parsers.attachment_parser import PARSER_VERSION, OCR_VERSION, sha256_file
 from ..preprocessing.normalization import Normalizer
 from ..rules.config_loader import RuleConfig
 from ..rules.rule_engine import RuleEngine
@@ -20,44 +29,130 @@ try:
     from ..governance.config_loader import GovernanceConfig
     from ..governance.engine import GovernanceEngine
     _GOV_AVAILABLE = True
-except Exception:
+except Exception:  # pragma: no cover
     GovernanceConfig = None
     GovernanceEngine = None
     _GOV_AVAILABLE = False
 from ..scoring.known_news_matcher import KnownNewsMatcher
+from ..security.payload_builder import SafePayloadBuilder
+from ..signals.merger import SignalMerger, UnifiedFinalScorer
 from ..storage.database import Database
 from ..storage.repository import Repository
 
 logger = logging.getLogger(__name__)
 
-# 需要回填附件内容的解析器
 TEXT_FILE_TYPES = {"pdf", "docx", "xlsx", "csv", "txt", "md", "jpg", "png"}
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8", errors="ignore")).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    return sha256_file(path)
+
+
+def _hash_files(paths: List[Path]) -> str:
+    h = hashlib.sha256()
+    for p in sorted(paths):
+        try:
+            h.update(p.name.encode("utf-8"))
+            h.update(p.read_bytes())
+        except OSError:
+            continue
+    return h.hexdigest()
+
+
+def _rule_pack_hash(config_dir: Optional[Path]) -> str:
+    if not config_dir:
+        return ""
+    names = ["taxonomy.yaml", "keywords.yaml", "pattern_rules.yaml",
+             "negative_rules.yaml", "scoring_rules.yaml", "unified_signals.yaml"]
+    return _hash_files([config_dir / n for n in names if (config_dir / n).exists()])
+
+
+def _governance_rule_pack_hash(config_dir: Optional[Path]) -> str:
+    if not config_dir:
+        return ""
+    names = ["governance_complaints.yaml", "governance_pattern_rules.yaml",
+             "governance_negative_rules.yaml"]
+    return _hash_files([config_dir / n for n in names if (config_dir / n).exists()])
+
+
+def _scoring_rule_hash(config_dir: Optional[Path]) -> str:
+    if not config_dir:
+        return ""
+    p = config_dir / "scoring_rules.yaml"
+    return _sha256_text(p.read_text(encoding="utf-8")) if p.exists() else ""
+
+
+def _mask_sender(sender: str) -> str:
+    s = str(sender or "")
+    if "@" in s:
+        local, _, domain = s.partition("@")
+        return (local[:2] + "***@" + domain) if local else "***@" + domain
+    return "***" if s else "?"
+
+
+def _prompt_hash(config_dir: Optional[Path]) -> str:
+    if not config_dir:
+        return ""
+    p = config_dir / "llm_email_screening_prompt.md"
+    return _sha256_text(p.read_text(encoding="utf-8")) if p.exists() else ""
+
+
 def _summary_for(rec: ScreeningRecord, rule: RuleResult, llm: LLMResult,
-                 fs: FinalScore) -> str:
-    """生成 80-180 字「为什么值得记者看」摘要（谨慎表述）。"""
-    persons = "、".join((llm.target_persons or rule.target_persons_found)[:3]) or "相關人士"
-    cats = "、".join((llm.categories or rule.matched_categories)[:3])
-    pats = "/".join(p.pattern_id for p in rule.matched_patterns[:3])
-    money_desc = "、".join(f"{m.get('raw')}({m.get('amount')} {m.get('currency')})" for m in rule.money[:2])
-    evid = "、".join(h.term for h in rule.matched_keywords.get("E", [])[:3])
-    if llm.evidence_items:
-        evid = evid or "、".join(llm.evidence_items[:3])
-    neg = ""
-    if rule.ex_present:
-        neg = "；注意該事項已有反向結果記錄，需查證本次是否提供新證據"
-    base = (f"郵件指稱{persons}涉{cats}相關事項，規則層命中Pattern {pats or '無'}，"
-            f"含原始證據線索（{evid or '未見'}）。")
-    if money_desc:
-        base += f"郵件提及資金（{money_desc}）。"
-    if llm.relationship_chain:
-        base += "構成潛在關係鏈：" + "、".join(llm.relationship_chain[:3]) + "。"
-    base += f"郵件分數{fs.final_score:.0f}/{fs.priority}級，尚待核實。{neg}"
-    # 控制长度
+                 fs: FinalScore, unified=None, governance=None) -> str:
+    """生成 80-180 字摘要；Governance/Mixed 必须体现治理语义。"""
+    from ..governance.numeric_features import extract_numeric_features
+    gov = governance
+    track = str(getattr(unified, "primary_track", "") or "")
+    gov_cats = list(getattr(gov, "categories", []) or [])
+    if track in ("GOVERNANCE", "MIXED") or (gov_cats and track == "GOVERNANCE"):
+        nf = extract_numeric_features(rule.normalized or rule.normalized)
+        cats = "、".join(gov_cats[:4]) or "治理民生"
+        parts = [f"治理民生线索（{cats}）"]
+        if nf.duration_days:
+            parts.append(f"持续时间约{nf.duration_days:.0f}天")
+        elif nf.approximate_duration_days:
+            parts.append("持续时间较长")
+        if nf.affected_population:
+            parts.append(f"影响约{nf.affected_population:.0f}户/人")
+        if nf.complaint_count or nf.frequency:
+            parts.append(f"陈情/投诉约{max(nf.complaint_count or 0, nf.frequency or 0):.0f}次")
+        if nf.money_loss:
+            parts.append(f"涉及损失约{nf.money_loss:.0f}元")
+        if nf.waiting_time_days:
+            parts.append(f"等待约{nf.waiting_time_days:.0f}天")
+        ev = "、".join((nf.evidence_terms or [])[:3]) or "待补证据"
+        parts.append(f"现有证据形态：{ev}")
+        if track == "MIXED":
+            pol_cats = "、".join((getattr(unified, "political_categories", []) or [])[:3])
+            if pol_cats:
+                parts.append(f"同时涉及政治类线索：{pol_cats}")
+        parts.append(f"综合评分{fs.final_score:.0f}/{fs.priority}级，尚待核实。")
+        base = "，".join(parts)
+    else:
+        persons = "、".join((llm.target_persons or rule.target_persons_found)[:3]) or "相關人士"
+        cats = "、".join((llm.categories or rule.matched_categories)[:3])
+        pats = "/".join(p.pattern_id for p in rule.matched_patterns[:3])
+        money_desc = "、".join(f"{m.get('raw')}({m.get('amount')} {m.get('currency')})" for m in rule.money[:2])
+        evid = "、".join(h.term for h in rule.matched_keywords.get("E", [])[:3])
+        if llm.evidence_items:
+            evid = evid or "、".join(llm.evidence_items[:3])
+        neg = ""
+        if rule.ex_present:
+            neg = "；注意該事項已有反向結果記錄，需查證本次是否提供新證據"
+        base = (f"郵件指稱{persons}涉{cats}相關事項，規則層命中Pattern {pats or '無'}，"
+                f"含原始證據線索（{evid or '未見'}）。")
+        if money_desc:
+            base += f"郵件提及資金（{money_desc}）。"
+        if llm.relationship_chain:
+            base += "構成潛在關係鏈：" + "、".join(llm.relationship_chain[:3]) + "。"
+        base += f"郵件分數{fs.final_score:.0f}/{fs.priority}級，尚待核實。{neg}"
     base = re.sub(r"\s+", "", base)
-    if len(base) > 180:
-        base = base[:177] + "…"
+    if len(base) > 220:
+        base = base[:217] + "…"
     return base
 
 
@@ -69,10 +164,12 @@ class ScreeningPipeline:
                  scorer: Optional[FinalScorer] = None,
                  known_matcher: Optional[KnownNewsMatcher] = None,
                  ocr_enabled: bool = True,
-                 llm_trigger_score: float = LLM_TRIGGER_SCORE,
+                 llm_trigger_score: Optional[float] = None,
                  allow_llm: bool = True,
                  release_advisor: Optional["ReleaseAdvisor"] = None,
-                 named_advisor: Optional["NamedChannelAdvisor"] = None):
+                 named_advisor: Optional["NamedChannelAdvisor"] = None,
+                 reprocess: bool = False, rescore: bool = False,
+                 reanalyze: bool = False):
         self.config = config
         self.rule_engine = RuleEngine(config)
         self.llm_screener = llm_screener or LLMScreener(config)
@@ -80,55 +177,72 @@ class ScreeningPipeline:
         self.scorer = scorer or FinalScorer(config, self.known_matcher)
         self.repo = Repository(db) if db is not None else None
         self.ocr_enabled = ocr_enabled
-        self.llm_trigger_score = llm_trigger_score
+        self.llm_trigger_score = resolve_llm_trigger_score(llm_trigger_score)
         self.allow_llm = allow_llm and LLM_ENABLED
         self.release_advisor = release_advisor
         self.named_advisor = named_advisor
-        # V4 governance engine (parallel, never break V1-V3)
+        self.reprocess = bool(reprocess)
+        self.rescore = bool(rescore)
+        self.reanalyze = bool(reanalyze)
+        self.merger = SignalMerger()
+        self.unified_scorer = UnifiedFinalScorer()
+        # Rule / prompt hashes for analysis_runs / stale detection
+        cfg_dir = getattr(config, "directory", None)
+        self.cfg_dir = Path(cfg_dir) if cfg_dir else None
+        self.political_rule_pack_hash = _rule_pack_hash(self.cfg_dir)
+        self.governance_rule_pack_hash = _governance_rule_pack_hash(self.cfg_dir)
+        self.scoring_rule_hash = _scoring_rule_hash(self.cfg_dir)
+        self.prompt_hash = _prompt_hash(self.cfg_dir)
+        # Governance 配置存在但非法：生产启动 FAIL；只有 GOVERNANCE_ENABLED=0 才显式跳过。
         self.gov_engine = None
-        try:
-            if _GOV_AVAILABLE:
-                import pathlib as _pl
-                gov_base = None
-                try:
-                    _cfg_dir = getattr(config, "directory", None)
-                    if _cfg_dir:
-                        gov_base = _pl.Path(_cfg_dir)
-                except Exception:
-                    gov_base = None
-                from app.config import NEWS_SIGNAL_DIR as _NSD
-                self.gov_engine = GovernanceEngine(gov_base or _NSD)
-        except Exception as _e:
-            logger.warning("Governance engine init failed (V1-V3 unaffected): %s", _e)
-            self.gov_engine = None
-        # S/A/B 进入首发渠道推荐的分数门槛（默认 60，可由 advisor.min_score 覆盖）
+        gov_enabled = os.getenv("GOVERNANCE_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
+        if gov_enabled and _GOV_AVAILABLE:
+            base = self.cfg_dir or Path(os.getenv("NEWS_SIGNAL_DIR", "config/news_signal"))
+            try:
+                self.gov_engine = GovernanceEngine(GovernanceConfig(base).load_all())
+            except Exception as exc:
+                logger.error("Governance 配置非法，启动 FAIL: %s", exc)
+                raise RuntimeError("Governance 配置非法；如确需临时停用请显式设置 GOVERNANCE_ENABLED=0") from exc
+        elif not gov_enabled:
+            logger.warning("Governance 已通过 GOVERNANCE_ENABLED=0 显式禁用")
         self.release_advisor_min_score = 60.0
         if self.release_advisor is not None and getattr(self.release_advisor, "min_score", None):
             self.release_advisor_min_score = float(self.release_advisor.min_score)
 
     # ------------------------------------------------------------------
-    def process_file(self, eml_path: str | Path) -> Optional[ScreeningRecord]:
+    def process_file(self, eml_path: str | Path, reprocess: bool = False) -> Optional[ScreeningRecord]:
         eml_path = Path(eml_path)
         try:
             doc = parse_eml(eml_path)
         except Exception as e:  # noqa: BLE001
             logger.error("EML 解析失败 %s: %s", eml_path, e)
             return ScreeningRecord(email_id=str(eml_path), error=f"EML解析失败: {e}")
-        if self.repo is not None and self.repo.is_duplicate(doc):
-            logger.info("跳过重复邮件: %s (%s)", doc.subject, eml_path.name)
-            return None
-        return self._process_document(doc)
+        return self._process_or_skip(doc, reprocess=reprocess or self.reprocess)
 
-    def process_document(self, doc: EmailDocument) -> Optional[ScreeningRecord]:
-        if self.repo is not None and self.repo.is_duplicate(doc):
-            logger.info("跳过重复邮件: %s", doc.subject)
-            return None
+    def process_document(self, doc: EmailDocument, reprocess: bool = False) -> Optional[ScreeningRecord]:
+        return self._process_or_skip(doc, reprocess=reprocess or self.reprocess)
+
+    def _process_or_skip(self, doc: EmailDocument, reprocess: bool = False) -> Optional[ScreeningRecord]:
+        # --reprocess/--rescore/--reanalyze 都允许重新生成 analysis_run；
+        # parse cache 仍会被复用，避免重复 OCR。
+        force = bool(reprocess or self.reprocess or self.rescore or self.reanalyze)
+        if self.repo is not None:
+            duplicate = self.repo.is_duplicate(doc)
+            if duplicate and not force:
+                stale = self.repo.analysis_is_stale(
+                    doc.email_id, self.political_rule_pack_hash,
+                    self.governance_rule_pack_hash, self.scoring_rule_hash, self.prompt_hash)
+                if not stale:
+                    logger.info("跳过重复且 analysis up-to-date: %s (%s)", doc.subject, doc.email_id)
+                    return None
+                logger.info("邮件已导入但 analysis stale，自动重新分析: %s", doc.email_id)
+            if duplicate and force:
+                logger.info("强制重新分析 (reprocess/rescore/reanalyze): %s", doc.email_id)
         return self._process_document(doc)
 
     # ------------------------------------------------------------------
     def _process_document(self, doc: EmailDocument) -> ScreeningRecord:
-        # 附件解析：跳过已知哈希（OCR/LLM 不重复调用）
-        attachments_text = []
+        attachments_text: List[str] = []
         for att in doc.attachments:
             cached = (att.metadata or {}).get("cached_path", "")
             if not cached:
@@ -137,17 +251,40 @@ class ScreeningPipeline:
                 att.extraction_status = "skipped"
                 att.warnings.append("该类型附件不进文本抽取")
                 continue
-            if self.repo is not None and self.repo.attachment_known("") and att.content_hash:
-                continue  # 占位：真正判定在 parse 后
+            source_sha = att.source_sha256 or att.sha256 or _sha256_file(Path(cached))
+            att.source_sha256 = source_sha
+            # Parse Cache key 必须稳定：parser/ocr 版本由当前配置决定，而不是由本次是否触发 OCR 决定。
+            att.parser_version = PARSER_VERSION
+            att.ocr_version = OCR_VERSION if self.ocr_enabled else "none"
+            cache_hit = None
+            if self.repo is not None:
+                cache_hit = self.repo.lookup_attachment_parse_cache(
+                    source_sha, att.parser_version, att.ocr_version)
             try:
-                parsed = parse_attachment(cached, att.filename, ocr_enabled=self.ocr_enabled)
-                att.text = parsed.text
-                att.metadata = {**att.metadata, **(parsed.metadata or {})}
-                att.tables = parsed.tables
-                att.extraction_status = parsed.extraction_status
-                att.warnings = parsed.warnings
-                att.content_hash = parsed.content_hash
-                att.ocr_used = parsed.ocr_used
+                if cache_hit:
+                    # 重复附件复用 parse cache：不重复 OCR、不重复解析。
+                    att.text = cache_hit.get("text") or ""
+                    att.text_sha256 = cache_hit.get("text_sha256") or ""
+                    att.content_hash = att.text_sha256
+                    att.metadata = {**(att.metadata or {}), **(cache_hit.get("metadata") or {})}
+                    att.tables = cache_hit.get("tables") or []
+                    att.extraction_status = cache_hit.get("extraction_status") or att.extraction_status
+                    logger.info("附件 parse cache 命中: %s", source_sha[:12])
+                else:
+                    parsed = parse_attachment(cached, att.filename, ocr_enabled=self.ocr_enabled)
+                    att.text = parsed.text
+                    att.metadata = {**(att.metadata or {}), **(parsed.metadata or {})}
+                    att.tables = parsed.tables
+                    att.extraction_status = parsed.extraction_status
+                    att.warnings = parsed.warnings
+                    att.source_sha256 = parsed.source_sha256 or source_sha
+                    att.text_sha256 = parsed.text_sha256
+                    att.content_hash = parsed.content_hash
+                    att.parser_version = PARSER_VERSION
+                    att.ocr_version = OCR_VERSION if self.ocr_enabled else "none"
+                    att.ocr_used = parsed.ocr_used
+                    if self.repo is not None:
+                        self.repo.save_attachment_parse_cache(att)
             except Exception as e:  # noqa: BLE001
                 logger.warning("附件解析异常 %s: %s", att.filename, e)
                 att.extraction_status = "failed"
@@ -155,7 +292,6 @@ class ScreeningPipeline:
             if att.text and att.text.strip():
                 attachments_text.append(f"\n===== 附件：{att.filename} =====\n{att.text}")
             if att.tables:
-                # 表格内容（保留行列）附加
                 tbl_lines = []
                 for t in att.tables[:300]:
                     tbl_lines.append(f"[{t.get('sheet')} r{t.get('row')}c{t.get('col')}] {t.get('value')}")
@@ -169,100 +305,148 @@ class ScreeningPipeline:
         doc.original_text = combined
         doc.normalized_text = Normalizer.normalize(combined)
 
-        # 全文规则引擎
         rr = self.rule_engine.evaluate(combined)
-        # 个人事务性邮件识别（本人账单/银行官方通知等——与爆料场景无关，压至 D）
         self._apply_transactional_cap(doc, rr)
-        # 旧闻判定（无新增证据）——给 negative/LLM 语义组
         no_new = self._judge_no_new_evidence(doc, rr)
         if no_new != rr.no_new_evidence:
-            # 重新评估（需要 no_new_evidence 参与 P20/X_result 判定）
             rr = self.rule_engine.evaluate(combined, no_new_evidence=no_new)
             self._apply_transactional_cap(doc, rr)
 
-        # 已知新闻匹配
         known = self.known_matcher.match(
             persons=rr.target_persons_found, companies=rr.target_orgs_found)
 
-        # LLM 触发
-        llm = self._maybe_llm(doc, rr)
-        if llm is None:
-            llm = self._fallback_llm(doc, rr)  # 低分也保留 template 判断，保持结构
+        # V4 Governance 在 LLM 之前运行，和 V1 一起进入 UnifiedSignalSet。
+        gov = None
+        if self.gov_engine is not None:
+            try:
+                gov = self.gov_engine.evaluate(combined, has_attachment=bool(doc.attachments))
+            except Exception as exc:
+                logger.error("Governance evaluate failed: %s", exc)
+                raise
+        gov_cats = list(getattr(gov, "categories", []) or [])
+        gov_score = float(getattr(gov, "score", 0.0) or 0.0)
+        provisional = self.merger.merge(
+            rule=rr, llm=None, score=None, governance=gov, known_news=known,
+            political_score=rr.rule_score, governance_score=gov_score,
+            attachments=doc.attachments, email_id=doc.email_id)
 
-        # 最终评分
+        llm = self._maybe_llm(doc, rr, provisional, gov, known)
+        if llm is None:
+            llm = self._fallback_llm(doc, rr)
+
+        # Unified final scoring：V1 final + V4 final，不把 Governance 压回 V1。
         fs = self.scorer.score(rr, llm, known_news=known)
+        political_final = float(fs.final_score or 0.0)
+        final_score, final_priority, fusion_reason = self.unified_scorer.fuse(
+            political_final, gov_score, rr.matched_categories, gov_cats,
+            fs.priority, str(getattr(gov, "priority", "") or ""))
+        fs.final_score = final_score
+        fs.priority = final_priority
+        fs.governance_score = gov_score
+        fs.primary_track = provisional.primary_track
+        fs.unified_reason = fusion_reason
+        unified = self.merger.merge(
+            rule=rr, llm=llm, score=fs, governance=gov, known_news=known,
+            political_score=political_final, governance_score=gov_score,
+            attachments=doc.attachments, email_id=doc.email_id)
+        unified.final_score = fs.final_score
+        unified.priority = fs.priority
 
         rec = ScreeningRecord(email_id=doc.email_id, email=doc, rule=rr, llm=llm,
-                              score=fs, known_news=known)
-        # V4 governance parallel (never affect rule_score; only upgrade final when G stronger)
-        try:
-            if self.gov_engine is not None:
-                has_att = bool(doc.attachments)
-                gov = self.gov_engine.evaluate(combined, has_attachment=has_att)
-                rec.governance_categories = list(gov.categories)
-                rec.governance_keywords = dict(gov.keywords)
-                rec.governance_patterns = list(gov.patterns)
-                rec.governance_score = float(gov.score)
-                rec.governance_priority = str(gov.priority)
-                rec.governance_dims = dict(gov.dims)
-                # 融合：保留两套分类，仅升级 final（不降级，不改 rule_score）
-                _order = {"S": 4, "A": 3, "B": 2, "C": 1, "D": 0}
-                if gov.categories and _order.get(gov.priority, 0) > _order.get(fs.priority, 0):
-                    fs.final_score = float(max(float(fs.final_score), float(gov.score)))
-                    fs.priority = str(gov.priority)
-        except Exception as _e:
-            logger.warning("Governance evaluate failed (V1-V3 unaffected): %s", _e)
-        rec.summary_zh = _summary_for(rec, rr, llm, fs)
-        rec.verification_targets = llm.verification_targets or []
-        if fs.priority in ("S", "A", "B") and not rec.verification_targets:
-            rec.verification_targets = llm.verification_targets or \
-                self.llm_screener._make_verification_targets(rr, [], [])
-        # 首发渠道推荐：仅 S/A/B 且 final_score >= 阈值（默认 60）
+                              score=fs, known_news=known, unified_signals=unified)
+        if gov is not None:
+            rec.governance_categories = gov_cats
+            rec.governance_keywords = dict(gov.keywords)
+            rec.governance_patterns = list(gov.patterns)
+            rec.governance_score = gov_score
+            rec.governance_priority = str(getattr(gov, "priority", "") or "")
+            rec.governance_dims = dict(gov.dims)
+            rec.governance_negatives = list(getattr(gov, "negatives", []) or [])
+            rec.governance_enhance = dict(getattr(gov, "enhance", {}) or {})
+            rec.governance_details = list(getattr(gov, "details", []) or [])
+
+        rec.summary_zh = _summary_for(rec, rr, llm, fs, unified, gov)
+        vt = list(llm.verification_targets or [])
+        if gov_cats:
+            for t in verification_targets_for(gov_cats):
+                if t not in vt:
+                    vt.append(t)
+        if fs.priority in ("S", "A", "B") and not vt:
+            vt = llm.verification_targets or self.llm_screener._make_verification_targets(rr, [], [])
+        rec.verification_targets = vt
+        # Governance 语义同步到 LLM 结果字段（不把 Gxx 混入 political llm.categories，保持双轨独立）。
+        if gov_cats:
+            if not llm.reason_for_attention:
+                llm.reason_for_attention = rec.summary_zh
+            if not llm.one_sentence_summary:
+                llm.one_sentence_summary = rec.summary_zh
+            if not llm.verification_targets:
+                llm.verification_targets = list(vt)
+
+        # V2/V3 只在 Governance 成为主轨/Mixed 时携带 governance 语义，避免污染纯政治线索既有路由。
+        include_gov = bool(gov_cats) and unified.primary_track in ("GOVERNANCE", "MIXED")
         if self.release_advisor is not None and fs.priority in ("S", "A", "B") \
                 and fs.final_score >= self.release_advisor_min_score:
             try:
                 rel = self.release_advisor.advise(
-                    email_id=doc.email_id, rule=rr, llm=llm, score=fs, doc=doc)
+                    email_id=doc.email_id, rule=rr, llm=llm, score=fs, doc=doc,
+                    governance_categories=gov_cats if include_gov else [],
+                    unified=unified)
                 rec.release_recommendation = rel.to_dict()
             except Exception as e:  # noqa: BLE001
                 logger.error("首发渠道推荐失败 %s: %s", doc.email_id, e)
                 rec.release_recommendation = None
-        # V3 具名渠道推荐：V2 存在且 S/A/B 才运行
         if self.named_advisor is not None and rec.release_recommendation is not None \
                 and fs.priority in ("S", "A", "B") \
                 and fs.final_score >= self.release_advisor_min_score:
             try:
                 named = self.named_advisor.advise(
                     email_id=doc.email_id, rule=rr, llm=llm, score=fs,
-                    release_recommendation=rec.release_recommendation, doc=doc)
+                    release_recommendation=rec.release_recommendation, doc=doc,
+                    governance_categories=gov_cats if include_gov else [],
+                    unified=unified)
                 rec.named_channel_recommendation = named.to_dict()
             except Exception as e:  # noqa: BLE001
                 logger.error("具名渠道推荐失败 %s: %s", doc.email_id, e)
                 rec.named_channel_recommendation = None
-        # 落库
+
+        # 持久化：整封邮件一个业务事务，任一 save 抛异常则 rollback。
         if self.repo is not None:
             try:
-                self.repo.save_email(doc)
-                self.repo.save_record(rec, store_full=False)
-                if rec.release_recommendation is not None:
-                    from ..release_advisor.models import ReleaseRecommendation
-                    rel_dict = dict(rec.release_recommendation)
-                    rel_dict.pop("email_id", None)
-                    self.repo.save_release_recommendation(
-                        ReleaseRecommendation(email_id=doc.email_id, **{
-                            k: v for k, v in rel_dict.items()
-                            if k in ReleaseRecommendation.__dataclass_fields__}))
-                if rec.named_channel_recommendation is not None:
-                    self.repo.save_named_channel_recommendations(
-                        doc.email_id, rec.named_channel_recommendation)
+                with self.repo.db.transaction():
+                    run_id = self.repo.start_analysis_run(
+                        doc.email_id,
+                        pipeline_version="4.1",
+                        political_rule_pack_hash=self.political_rule_pack_hash,
+                        governance_rule_pack_hash=self.governance_rule_pack_hash,
+                        scoring_rule_hash=self.scoring_rule_hash,
+                        prompt_hash=self.prompt_hash,
+                        llm_mode=self.llm_screener.mode,
+                        llm_provider=("template" if self.llm_screener.mode != "api"
+                                      else (urlparse(LLM_BASE_URL or "").hostname or "")),
+                        llm_model=LLM_MODEL)
+                    self.repo.save_email(doc, force=True)
+                    if gov is not None:
+                        self.repo.save_governance(doc.email_id, gov)
+                    self.repo.save_record(rec, store_full=False)
+                    if rec.release_recommendation is not None:
+                        from ..release_advisor.models import ReleaseRecommendation
+                        rel_dict = dict(rec.release_recommendation)
+                        rel_dict.pop("email_id", None)
+                        self.repo.save_release_recommendation(
+                            ReleaseRecommendation(email_id=doc.email_id, **{
+                                k: v for k, v in rel_dict.items()
+                                if k in ReleaseRecommendation.__dataclass_fields__}))
+                    if rec.named_channel_recommendation is not None:
+                        self.repo.save_named_channel_recommendations(
+                            doc.email_id, rec.named_channel_recommendation)
+                    self.repo.finish_analysis_run(run_id, "ok")
             except Exception as e:  # noqa: BLE001
-                logger.error("落库失败 %s: %s", doc.email_id, e)
+                logger.error("落库失败并已 rollback %s: %s", doc.email_id, e)
+                raise
         return rec
 
     # ------------------------------------------------------------------
-    # 个人事务性邮件识别：银行账单/电子发票/行程单/积分里程/验证码等官方系统发给
-    # 本人的日常凭证与通知，与爆料场景无关，即便含金额/姓名/公司也不得进入 S/A/B。
-    # （区别于爆料场景：爆料人转发的他人流水/发票——发件人不是平台官方域名）
     _PERSONAL_SENDERS = ("citiccard.com", "cmbchina.com", "ccb.com", "icbc.com.cn", "abchina.com",
                          "boc.cn", "bankcomm.com", "cib.com.cn", "spdb.com.cn", "cmbc.com.cn",
                          "cebbank.com", "pingan.com", "cgbchina.com.cn", "hxb.com.cn", "paypal.com",
@@ -286,7 +470,6 @@ class ScreeningPipeline:
         text = doc.normalized_text
         is_personal_sender = any(d in sender for d in self._PERSONAL_SENDERS)
         hits = [s for s in self._PERSONAL_SIGNALS if s in subject or s in text]
-        # 官方平台发件人 + 凭证/通知特征；或强凭证特征(>=2)且含平台特征
         if (is_personal_sender and hits) or (len(hits) >= 2 and any(
                 k in text for k in ("开具", "開具", "电子", "電子", "发票", "發票", "账单", "帳單"))):
             rr.rule_score = min(rr.rule_score, 15.0)
@@ -298,51 +481,54 @@ class ScreeningPipeline:
             rr.negative_matches.append({
                 "rule_id": "N01", "condition": "个人消费凭证/官方通知类事务性邮件",
                 "score_delta": -30.0, "max_score": 30.0, "matched_terms": hits[:4], "snippets": []})
-            logger.info("个人事务性邮件降权: %s (%s)", doc.subject, sender or "?")
+            logger.info("个人事务性邮件降权: %s (%s)", doc.subject, _mask_sender(sender))
 
     def _judge_no_new_evidence(self, doc: EmailDocument, rr: RuleResult) -> bool:
-        """判断是否「旧案无新增证据」：旧闻信号 + 无新证据要素."""
         text = doc.normalized_text
         old_signals = ["去年", "先前", "当年", "当时", "旧闻", "过去", "转发", "转贴", "转载",
                        "曾报道", "曾報導", "旧案", "当年新闻", "旧新闻"]
         news_signals = ["报道", "報導", "新闻", "新聞", "记者", "記者", "媒体", "媒體"]
         has_old = any(s in text for s in old_signals)
         has_news = any(s in text for s in news_signals)
-        # 新证据要素：新金额/新文件/新账户/新公司/新时间
         has_new = bool(rr.money)
         has_new = has_new or bool(rr.matched_keywords.get("E"))
-        # 附件有文本也算潜在新证据
         if rr.no_new_evidence:
             return True
         if has_old and has_news and not has_new:
             return True
         return False
 
-    def _maybe_llm(self, doc: EmailDocument, rr: RuleResult) -> Optional[LLMResult]:
-        """规则触发 LLM：rule_score>=35 或 高价值 pattern 或 E+人/公司+金额."""
-        trigger = False
-        reason = ""
-        if rr.rule_score >= self.llm_trigger_score:
-            trigger, reason = True, f"rule_score={rr.rule_score}>={self.llm_trigger_score}"
-        if RULE_TRIGGER_EXTRA and not trigger:
+    # ------------------------------------------------------------------
+    def _maybe_llm(self, doc: EmailDocument, rr: RuleResult, unified=None,
+                   governance=None, known_news=None) -> Optional[LLMResult]:
+        """绝对阈值：rule_score < LLM_TRIGGER_SCORE 不得触发 LLM。
+
+        Extra 触发条件只在已达到绝对阈值后作为补充说明，避免 50 分邮件因 pattern
+        被送外部模型。
+        """
+        if rr.rule_score < self.llm_trigger_score:
+            return None
+        reason = f"rule_score={rr.rule_score}>={self.llm_trigger_score}"
+        if RULE_TRIGGER_EXTRA:
             hp = [p for p in rr.matched_patterns if p.pattern_id not in ("P20",) and p.pattern_score >= 70]
             if hp:
-                trigger, reason = True, f"高价值Pattern {hp[0].pattern_id}"
-            else:
-                e_terms = rr.matched_keywords.get("E", [])
-                has_person = bool(rr.target_persons_found or rr.matched_keywords.get("C"))
-                if e_terms and has_person and rr.money:
-                    trigger, reason = True, "E类证据+目标+具体金额"
-        if trigger:
-            logger.info("触发 LLM (%s): %s", reason, doc.subject)
-            if not self.allow_llm:
-                return None
-            return self.llm_screener.screen(doc.combined_text, doc.subject, doc.sender, rr)
-        return None
+                reason += f";高价值Pattern {hp[0].pattern_id}"
+            elif rr.matched_keywords.get("E") and (rr.target_persons_found or rr.matched_keywords.get("C")) and rr.money:
+                reason += ";E类证据+目标+具体金额"
+        logger.info("触发 LLM (%s): %s", reason, doc.subject)
+        if not self.allow_llm:
+            return None
+        if self.llm_screener.mode == "api" and self.llm_screener.client is not None \
+                and getattr(self.llm_screener.client, "is_external", False):
+            from ..security.payload_builder import SafePayloadBuilder
+            policy = getattr(self.llm_screener.client, "policy", None)
+            safe = SafePayloadBuilder(policy=policy).build_v1(
+                rule=rr, llm=None, score=None, governance=governance,
+                unified=unified, known_news=known_news, email_id=doc.email_id)
+            return self.llm_screener.screen_safe(safe, rr)
+        return self.llm_screener.screen(doc.combined_text, doc.subject, doc.sender, rr)
 
     def _fallback_llm(self, doc: EmailDocument, rr: RuleResult) -> LLMResult:
-        """未达 LLM 阈值(rule_score<35)：不造内容，返回空 LLM 结果。
-        避免模板后端把低信号营销/通知信抬高；最终分由规则分与负向规则决定。"""
         if rr.rule_score < self.llm_trigger_score:
             return LLMResult(llm_status="degraded", relevant=False)
         raw = self.llm_screener._screen_template(doc.combined_text, doc.subject, doc.sender, rr)
@@ -353,11 +539,11 @@ class ScreeningPipeline:
         return llm
 
     # ------------------------------------------------------------------
-    def process_directory(self, inbox: str | Path) -> List[ScreeningRecord]:
+    def process_directory(self, inbox: str | Path, reprocess: bool = False) -> List[ScreeningRecord]:
         inbox = Path(inbox)
         records = []
         for eml in sorted(inbox.glob("*.eml")):
-            rec = self.process_file(eml)
+            rec = self.process_file(eml, reprocess=reprocess)
             if rec is not None:
                 records.append(rec)
         return records
