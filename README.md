@@ -1,4 +1,4 @@
-# 台湾政治新闻爆料邮箱智能筛选引擎 V4.1.1（Final Hardening）
+# 台湾政治新闻爆料邮箱智能筛选引擎 V4.2（Local Dashboard MVP）
 
 围绕「台湾政治负面新闻标识规则库 V1.0」（`config/news_signal/`）构建的**爆料邮箱新闻线索筛选引擎**：
 从爆料邮箱材料（邮件正文 + 附件）中自动发现值得记者核查的高价值线索，输出 0-100 评分、
@@ -662,3 +662,86 @@ channel_entity_hash
 ## 7. 定位声明
 
 本系统只做新闻线索筛选和核验辅助，不对指控作事实认定；所有发布、检举、联系媒体/人物/机关的动作均需编辑部人工确认。
+
+
+---
+
+# Local Dashboard（V4.2 MVP）
+
+## 启动
+
+```bash
+python -m app.dashboard.server
+```
+
+或：
+
+```bash
+python -m app.main --dashboard
+```
+
+访问：
+
+```text
+http://127.0.0.1:8765
+```
+
+默认只监听：
+
+```text
+127.0.0.1
+```
+
+不支持公网、端口转发或反向代理暴露。本 Dashboard 不是邮件服务器、不是发布系统、不是事实认定系统、不是云端平台；只用于本地查看、筛选、人工复核与备注。
+
+## 数据来源
+
+- 复用现有 `data/news_screening.db`（与主程序同一个 SQLite 文件）。
+- Dashboard 不建立第二套业务库。
+- 只新增 `dashboard_reviews` 人工审核表。
+- Dashboard 不触发规则引擎、LLM、Governance Engine 或重新评分。
+
+## 页面
+
+```text
+/                首页：统计、Track、筛选、高价值列表、分页
+/review          人工审核队列
+/emails/{id}     邮件详情：双轨、证据、核查、V2、V3、附件、人工审核
+```
+
+## 人工审核
+
+固定状态：
+
+```text
+UNREVIEWED 未审核
+VERIFY 待核查
+PRIORITY 重点跟进
+VERIFIED 已核实
+LOW_VALUE 价值有限
+FALSE_POSITIVE 误报
+ARCHIVED 已归档
+```
+
+人工状态与自动评分完全隔离，`FALSE_POSITIVE` 不会把 `scores.final_score` 改成 0。
+
+## 隐私边界
+
+- 首页与详情页默认不显示原始正文、附件全文、OCR 全文。
+- 不显示 sender email、recipients、cc、Message-ID、source_path、cached_path。
+- 不显示银行账户、电话、身份证、API Key。
+- 不在线打开原文件。
+- Dashboard 不调用外部 LLM。
+- 页面资源全部本地，不使用 CDN / Google Fonts / 公网资源。
+- 所有页面使用 Jinja2 自动转义，人工备注和邮件内容按不可信字符串处理。
+
+## 统计口径
+
+“今日/最近 N 日”按 `emails.processed_at` 日期统计；“待人工审核”定义为：
+
+```text
+自动分数 priority in (S,A,B)
+且 dashboard_review_status in (UNREVIEWED, VERIFY, PRIORITY)
+```
+
+无 `dashboard_reviews` 行视为 `UNREVIEWED`。

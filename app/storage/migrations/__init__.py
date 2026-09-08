@@ -13,7 +13,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 PIPELINE_VERSION = "4.1.1"
 
 
@@ -226,6 +226,28 @@ def migration_003_v411_hardening(conn: sqlite3.Connection) -> None:
                       "ON named_channel_recommendations(email_id, entity_id, channel_group)", strict=True)
 
 
+def migration_004_v420_dashboard(conn: sqlite3.Connection) -> None:
+    """V4.2: Local Dashboard 人工审核表与查询索引。"""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS dashboard_reviews (
+            email_id TEXT PRIMARY KEY,
+            review_status TEXT NOT NULL DEFAULT 'UNREVIEWED',
+            editor_note TEXT NOT NULL DEFAULT '',
+            reviewed_at TEXT,
+            updated_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(email_id) REFERENCES emails(email_id)
+        );
+        """
+    )
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_dashboard_reviews_status "
+                      "ON dashboard_reviews(review_status)")
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_scores_priority ON scores(priority)")
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_scores_primary_track ON scores(primary_track)")
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_emails_processed_at ON emails(processed_at)")
+
+
 @dataclass
 class Migration:
     version: int
@@ -237,6 +259,7 @@ MIGRATIONS: List[Migration] = [
     Migration(1, "V4.1 add governance/analysis/cache tables and columns", migration_001_add_v41_tables),
     Migration(2, "V4.1 finalize indexes and schema version", migration_002_v41_finalize),
     Migration(3, "V4.1.1 deduplicate child tables and add analysis hashes", migration_003_v411_hardening),
+    Migration(4, "V4.2 dashboard reviews and query indexes", migration_004_v420_dashboard),
 ]
 
 

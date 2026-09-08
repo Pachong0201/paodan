@@ -1,0 +1,20 @@
+# Paodan V4.2 Local Dashboard 配置
+# 只监听 localhost；不提供公网/远程访问支持。
+dashboard:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8765
+  page_size: 30
+  max_page_size: 100
+  default_days: 7
+  show_raw_body: false
+  show_sender_email: false
+  allow_open_local_file: false
+  review_statuses:
+    - UNREVIEWED
+    - VERIFY
+    - PRIORITY
+    - VERIFIED
+    - LOW_VALUE
+    - FALSE_POSITIVE
+    - ARCHIVED

@@ -1,0 +1,39 @@
+<div class="table-wrap">
+<table class="data-table">
+<thead>
+<tr>
+  <th>Priority</th>
+  <th>Score</th>
+  <th>Track</th>
+  <th>Subject</th>
+  <th>Categories</th>
+  <th>Summary</th>
+  <th>Review</th>
+  <th>Processed</th>
+</tr>
+</thead>
+<tbody>
+{% for item in items %}
+<tr>
+  <td><span class="badge priority-{{ item.priority|lower }}">{{ item.priority }}</span></td>
+  <td>{{ "%.0f"|format(item.final_score) }}</td>
+  <td title="{{ track_labels.get(item.primary_track, item.primary_track) }}">
+    <span class="badge track-{{ item.primary_track|lower }}">{{ item.primary_track[:3] if item.primary_track else 'NONE' }}</span>
+  </td>
+  <td class="subject-cell"><a href="/emails/{{ item.email_id }}">{{ item.subject[:100] or '(無標題)' }}</a></td>
+  <td class="cats-cell">
+    {% for c in (item.political_categories + item.governance_categories)[:4] %}
+      <span class="cat">{{ c }}</span>
+    {% endfor %}
+    {% if item.political_categories or item.governance_categories %}{% else %}—{% endif %}
+  </td>
+  <td class="summary-cell">{{ item.summary[:160] }}</td>
+  <td><span class="badge review-{{ item.review_status|lower }}">{{ item.review_status_label }}</span></td>
+  <td class="time-cell">{{ item.processed_at[:10] }}</td>
+</tr>
+{% else %}
+<tr><td colspan="8">暫無已處理郵件</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>

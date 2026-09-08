@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paodan-news-screening"
-version = "4.1.1"
-description = "Taiwan political/governance complaint email screening engine V4.1.1"
+version = "4.2.0"
+description = "Taiwan political/governance complaint email screening engine V4.2 with Local Dashboard"
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
@@ -18,10 +18,14 @@ dependencies = [
   "openpyxl>=3.1",
   "Pillow>=10.0",
   "opencc-python-reimplemented>=0.1.7",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8.0"]
+test = ["pytest>=8.0", "httpx>=0.27"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

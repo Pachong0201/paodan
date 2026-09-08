@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ detail.priority }} | {{ detail.subject }} | Paodan{% endblock %}
+{% block content %}
+<p><a href="/">← 返回首頁</a></p>
+<h2>{{ detail.subject }}</h2>
+
+<div class="detail-grid">
+  <section class="card">
+    <h3>基本資訊</h3>
+    <dl>
+      <dt>Priority</dt><dd><span class="badge priority-{{ detail.priority|lower }}">{{ detail.priority }}</span></dd>
+      <dt>Score</dt><dd>{{ "%.1f"|format(detail.final_score) }}</dd>
+      <dt>Primary Track</dt><dd>{{ detail.primary_track }}（{{ track_labels.get(detail.primary_track, '') }}）</dd>
+      <dt>Review Status</dt><dd>{{ review_statuses.get(detail.review.review_status, detail.review.review_status) }}</dd>
+      <dt>Processed Time</dt><dd>{{ detail.processed_at }}</dd>
+      <dt>Attachment Count</dt><dd>{{ detail.attachments|length }}</dd>
+      <dt>Analysis Version</dt><dd>{{ detail.analysis_pipeline_version or '暫無' }}</dd>
+      <dt>Analysis Time</dt><dd>{{ detail.analysis_finished_at or '暫無' }}</dd>
+    </dl>
+    {% if detail.in_system_review_queue %}
+    <div class="sys-flag">系統建議人工複核</div>
+    {% endif %}
+    {% if detail.analysis_pipeline_version and detail.analysis_pipeline_version != '4.1.1' %}
+    <div class="stale-flag">歷史分析</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h3>雙軌分析</h3>
+    <div class="two-col">
+      <div>
+        <h4>Political</h4>
+        <div>Score: {{ "%.0f"|format(detail.political_score) }}</div>
+        <ul class="cats">{% for c in detail.political_categories %}<li>{{ c }}</li>{% else %}<li>暫無政治類別</li>{% endfor %}</ul>
+        <div class="patterns">{% for p in detail.political_patterns %}<span class="pat">{{ p }}</span>{% endfor %}</div>
+      </div>
+      <div>
+        <h4>Governance</h4>
+        <div>Score: {{ "%.0f"|format(detail.governance_score) }}</div>
+        <ul class="cats">{% for c in detail.governance_categories %}<li>{{ c }}</li>{% else %}<li>未命中治理民生類別</li>{% endfor %}</ul>
+        <div class="patterns">{% for p in detail.governance_patterns %}<span class="pat">{{ p }}</span>{% endfor %}</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>為什麼值得看</h3>
+    <p class="summary">{{ detail.summary or '暫無摘要' }}</p>
+    {% if detail.reason %}<p class="reason">{{ detail.reason }}</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h3>證據情況</h3>
+    <dl>
+      <dt>Evidence Stage</dt><dd>{{ detail.evidence_stage or '暫無' }}</dd>
+      <dt>Evidence Shapes</dt><dd>{{ detail.evidence_shapes|join('、') or '暫無' }}</dd>
+      <dt>Money Facts</dt>
+      <dd>
+        {% for m in detail.money_facts %}{{ m.currency }} {{ "{:,.0f}".format(m.amount) }}{% if not loop.last %}；{% endif %}{% else %}暫無{% endfor %}
+      </dd>
+      <dt>Entities</dt><dd>{{ detail.entities|join('、') or '暫無' }}</dd>
+      <dt>Pattern Hits</dt><dd>{{ detail.pattern_ids|join('、') or '暫無' }}</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h3>核查清單</h3>
+    <ul class="checklist">
+      {% for vt in detail.verification_targets %}
+      <li>□ {{ vt }}</li>
+      {% else %}
+      <li>暫無核查建議</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <h3>V2 Release Advisor</h3>
+    {% if detail.release %}
+      <dl>
+        <dt>Primary Route</dt><dd>{{ route_names.get(detail.release.primary_route, detail.release.primary_route) }}</dd>
+        <dt>Secondary Routes</dt><dd>{{ detail.release.secondary_routes|join('、') or '—' }}</dd>
+        <dt>Avoid Routes</dt><dd>{{ detail.release.avoid_routes|join('、') or '—' }}</dd>
+        <dt>Confidence</dt><dd>{{ "%.2f"|format(detail.release.route_confidence or 0) }}</dd>
+        <dt>Formal Referral</dt><dd>{{ '是' if detail.release.formal_referral_recommended else '否' }}</dd>
+        <dt>Release Risks</dt><dd>{{ detail.release.release_risks|join('、') or '—' }}</dd>
+        <dt>Verification Before Release</dt><dd><ul>{% for v in detail.release.verification_before_release %}<li>{{ v }}</li>{% else %}<li>—</li>{% endfor %}</ul></dd>
+        <dt>Reason</dt><dd>{{ detail.release.reason or '—' }}</dd>
+        {% if detail.release.recommended_release_sequence %}
+        <dt>Recommended Sequence</dt><dd><ul>{% for s in detail.release.recommended_release_sequence %}<li>{{ s.step }}. {{ s.action }} {{ s.route }}</li>{% endfor %}</ul></dd>
+        {% endif %}
+      </dl>
+    {% else %}
+      <p>暫無首發渠道建議</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h3>V3 Named Channel</h3>
+    {% if detail.named_channels %}
+      <table class="data-table">
+        <thead><tr><th>Group</th><th>Name</th><th>Fit</th><th>Reason</th><th>Role</th></tr></thead>
+        <tbody>
+        {% for nc in detail.named_channels %}
+          <tr><td>{{ nc.group }}</td><td>{{ nc.entity_name }}</td><td>{{ "%.0f"|format(nc.fit_score) }}</td><td>{{ nc.reason }}</td><td>{{ nc.roles|join(',') }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>暫無具名渠道建議</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h3>附件（安全元資料）</h3>
+    {% if detail.attachments %}
+      <table class="data-table">
+        <thead><tr><th>Filename</th><th>Type</th><th>Status</th><th>Warnings</th></tr></thead>
+        <tbody>
+        {% for a in detail.attachments %}
+          <tr><td>{{ a.filename }}</td><td>{{ a.file_type }}</td><td>{{ a.extraction_status }}</td><td>{{ a.warnings_count }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>無附件</p>
+    {% endif %}
+  </section>
+
+  <section class="card human-review" id="human-review">
+    <h3>人工審核</h3>
+    <p class="hint">人工備註，不影響系統評分</p>
+    <form id="review-form" data-email-id="{{ detail.email_id }}">
+      <input type="hidden" name="csrf_token" value="{{ request.app.state.csrf_token }}">
+      <label>Review Status
+        <select name="status">
+          {% for k,v in review_statuses.items() %}
+          <option value="{{ k }}" {% if detail.review.review_status == k %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Editor Note（最多5000字）
+        <textarea name="editor_note" maxlength="5000" rows="6">{{ detail.review.editor_note }}</textarea>
+      </label>
+      <button type="submit">保存</button>
+      <span id="review-saved" class="save-msg"></span>
+    </form>
+  </section>
+</div>
+{% endblock %}

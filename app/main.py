@@ -79,6 +79,18 @@ def _print_record(rec, verbose: bool = False):
             print(f"     核查{i}: {vt}")
 
 
+
+def _dashboard_table_exists() -> bool:
+    try:
+        from .storage.database import Database
+        from .config import DB_PATH as _DB_PATH
+        db = Database(_DB_PATH)
+        ok = bool(db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='dashboard_reviews'"))
+        db.close()
+        return ok
+    except Exception:
+        return False
+
 def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
     """V4.1.1 生产自检：规则包 / Governance / Privacy / DB Schema / Output Security / Analysis。"""
     print("=" * 64)
@@ -236,6 +248,24 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"  [WARN] runtime environment check: {exc}")
 
+
+    # ---------- Local Dashboard ----------
+    print("\n[Local Dashboard]")
+    try:
+        from .dashboard.config import DashboardConfigError, load_dashboard_config
+        from .dashboard.server import TEMPLATES_DIR, STATIC_DIR
+        dcfg = load_dashboard_config()
+        print(f"  [OK] dashboard config: {dcfg.source_file}")
+        print(f"  [OK] bind host: {dcfg.host}")
+        print(f"  [OK] dashboard_reviews table: {'OK' if _dashboard_table_exists() else 'MISSING'}")
+        print(f"  [OK] dashboard templates: {'OK' if TEMPLATES_DIR.exists() else 'MISSING'}")
+        print(f"  [OK] static assets local: {'OK' if STATIC_DIR.exists() else 'MISSING'}")
+    except DashboardConfigError as exc:
+        print(f"  [FAIL] dashboard config: {exc}")
+        failures.append("dashboard_config")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [WARN] dashboard selfcheck: {exc}")
+
     # ---------- Output Security / config ----------
     print("\n[Output Security]")
     try:
@@ -257,6 +287,9 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
 
 def run(args) -> int:
     cfg = _load_config()
+    if getattr(args, "dashboard", False):
+        from .dashboard.server import main as dash_main
+        return dash_main()
     if args.selfcheck:
         return selfcheck(cfg)
 
@@ -416,6 +449,8 @@ def main(argv=None) -> int:
                         help="覆盖 LLM 模式")
     parser.add_argument("--llm-trigger-score", type=float, default=None,
                         help="覆盖 LLM_TRIGGER_SCORE（CLI > ENV > 默认）")
+    parser.add_argument("--dashboard", action="store_true", default=False,
+                        help="启动本地 Dashboard（127.0.0.1:8765）")
     parser.add_argument("--reprocess", action="store_true", default=False,
                         help="重新解析/完整处理（即使邮件已导入）")
     parser.add_argument("--rescore", action="store_true", default=False,

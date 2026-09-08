@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Review Queue | Paodan{% endblock %}
+{% block content %}
+<h2>Review Queue（人工審核隊列）</h2>
+<p class="hint">系統待審 + 人工標記狀態；人工狀態不會修改自動評分。</p>
+<section class="filter-bar">
+  <form method="get" action="/review">
+    <label>Review
+      <select name="review_status">
+        <option value="">Active (UNREVIEWED/VERIFY/PRIORITY)</option>
+        {% for k,v in review_statuses.items() %}
+        <option value="{{ k }}" {% if filters.review_status == k %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Priority <input type="text" name="priority" value="{{ filters.priorities|join(',') }}"></label>
+    <label>Track <input type="text" name="track" value="{{ filters.track }}"></label>
+    <label>Search <input type="search" name="q" value="{{ filters.q }}"></label>
+    <label>Days
+      <select name="days">
+        <option value="today">今日</option>
+        <option value="7" {% if filters.days == '7' %}selected{% endif %}>7天</option>
+        <option value="30" {% if filters.days == '30' %}selected{% endif %}>30天</option>
+        <option value="all" {% if filters.days == 'all' %}selected{% endif %}>全部</option>
+      </select>
+    </label>
+    <button type="submit">篩選</button>
+  </form>
+</section>
+{% include "partials/email_table.html" %}
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% if page > 1 %}<a href="?{{ request.url.query }}&page={{ page-1 }}">上一頁</a>{% endif %}
+  <span>{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}<a href="?{{ request.url.query }}&page={{ page+1 }}">下一頁</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

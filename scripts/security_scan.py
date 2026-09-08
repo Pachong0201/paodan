@@ -28,6 +28,8 @@ RAW_MAILBOX_RE = re.compile(r"(?:/home/[^\s\"'<>]+|/Users/[^\s\"'<>]+|[A-Za-z]:\
 BANK_CANARY_RE = re.compile(r"\b812345678901234567\b")
 KNOWN_CANARY_RE = re.compile(r"\b(?:RAW|ATTACHMENT)_PRIVATE_CANARY_[A-Z0-9]+\b")
 SYNTHETIC_HEADER_RE = re.compile(r"x-paodan-synthetic-fixture\s*:\s*true", re.IGNORECASE)
+EXTERNAL_URL_RE = re.compile(r"https?://", re.IGNORECASE)
+DASHBOARD_FORBIDDEN_IN_TEMPLATES = ("source_path", "cached_path", "body_text", "combined_text")
 MANIFEST_FILE = ROOT / "tests" / "fixtures" / "manifest.json"
 
 
@@ -108,6 +110,26 @@ def main() -> int:
     except Exception:
         pass
     manifest = load_synthetic_manifest()
+
+    # Dashboard templates/static 不得引用公网资源或直接渲染敏感字段。
+    dashboard_dir = ROOT / "app" / "dashboard"
+    for p in [dashboard_dir / "templates", dashboard_dir / "static"]:
+        if not p.exists():
+            continue
+        for f in p.rglob("*"):
+            if not f.is_file():
+                continue
+            rel = f.relative_to(ROOT).as_posix()
+            try:
+                text = f.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            if EXTERNAL_URL_RE.search(text):
+                issues.append(f"{rel}: dashboard asset contains external URL")
+            if p.name == "templates":
+                for token in DASHBOARD_FORBIDDEN_IN_TEMPLATES:
+                    if token in text:
+                        issues.append(f"{rel}: dashboard template contains forbidden raw field token {token}")
     for path in files:
         if not path.exists():
             # index 中可能残留已移动/删除的旧路径；以 working tree 实际文件为准。
