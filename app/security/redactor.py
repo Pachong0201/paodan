@@ -47,7 +47,10 @@ PATTERNS: List[Tuple[str, Pattern[str], str]] = [
         r"同學|同学|醫師|医师|律師|律师)"), "[REDACTED_PERSON]"),
     ("CN_NAME_VERB", re.compile(
         rf"(?:[{CN_SURNAMES}])[\u4e00-\u9fff]{{1,3}}"
-        r"(?=(?:昨天|今天|日前|表示|指出|告訴|告诉|說|说|提供|爆料|證實|证实))"),
+        r"(?=(?:昨天|今天|日前|表示|指出|告訴|告诉|說|说|提供|通過|通过|透過|透过|聯繫|联系|核實|核实|核驗|核验|爆料|證實|证实))"),
+     "[REDACTED_PERSON]"),
+    ("CN_NAME_CONTACT", re.compile(
+        rf"(?:联系|聯繫|建議聯繫|建议联系|請聯繫|请联系|找|跟|問|问)(?:[{CN_SURNAMES}])[\u4e00-\u9fff]{{1,2}}"),
      "[REDACTED_PERSON]"),
     ("CN_NAME_GENERIC", re.compile(
         rf"(?<![\u4e00-\u9fff])(?:[{CN_SURNAMES}])[\u4e00-\u9fff]{{1,2}}(?![\u4e00-\u9fff])"),
@@ -81,11 +84,11 @@ PATTERNS: List[Tuple[str, Pattern[str], str]] = [
 ORDER = {
     "PRIVATE_CANARY": -2,
     "CN_NAME_OO": -1, "CN_NAME_CONTEXT": 0, "CN_NAME_HONORIFIC": 1,
-    "CN_NAME_VERB": 2, "CN_NAME_GENERIC": 3, "EN_NAME": 4, "ADDRESS": 5,
-    "WINDOWS_PATH": 6, "UNIX_PATH": 7, "MESSAGE_ID": 8, "API_KEY": 9,
-    "BEARER_TOKEN": 10, "PASSWORD_SECRET": 11, "LINE_ID": 12, "EMAIL": 13,
-    "TAIWAN_ID": 14, "PHONE": 15, "BANK_ACCOUNT": 16, "IP": 17,
-    "USERNAME_HANDLE": 18,
+    "CN_NAME_VERB": 2, "CN_NAME_CONTACT": 3, "CN_NAME_GENERIC": 4, "EN_NAME": 5, "ADDRESS": 6,
+    "WINDOWS_PATH": 7, "UNIX_PATH": 8, "MESSAGE_ID": 9, "API_KEY": 10,
+    "BEARER_TOKEN": 11, "PASSWORD_SECRET": 12, "LINE_ID": 13, "EMAIL": 14,
+    "TAIWAN_ID": 15, "PHONE": 16, "BANK_ACCOUNT": 17, "IP": 18,
+    "USERNAME_HANDLE": 19,
 }
 
 

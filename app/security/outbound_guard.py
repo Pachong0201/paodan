@@ -59,7 +59,7 @@ class OutboundGuard:
         # 对其内容扫描只保留高置信 secret/PII 规则，避免误报。
         self.system_redactor = PrivacyRedactor(exclude_kinds=(
             "CN_NAME_OO", "CN_NAME_CONTEXT", "CN_NAME_HONORIFIC", "CN_NAME_VERB",
-            "CN_NAME_GENERIC", "EN_NAME",
+            "CN_NAME_CONTACT", "CN_NAME_GENERIC", "EN_NAME",
         ))
 
     # ------------------------------------------------------------------

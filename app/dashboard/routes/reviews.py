@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from typing import Optional
 
+import secrets
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from ..db import connect_dashboard
@@ -17,12 +20,19 @@ def review_post(request: Request, email_id: str,
                 status: str = Form(...),
                 editor_note: str = Form(""),
                 csrf_token: Optional[str] = Form(None)):
-    expected = getattr(request.app.state, "csrf_token", "")
-    if expected and csrf_token != expected:
-        # 本地 MVP：允许无 Origin 的测试/本机表单；若带 Origin 则必须是 localhost。
-        origin = request.headers.get("origin") or ""
-        if origin and not any(h in origin for h in ("127.0.0.1", "localhost")):
-            raise HTTPException(status_code=400, detail="invalid csrf token")
+    expected = str(getattr(request.app.state, "csrf_token", "") or "")
+    if not csrf_token or not expected or not secrets.compare_digest(str(csrf_token), expected):
+        raise HTTPException(status_code=403, detail="invalid csrf token")
+    # 第二层：若带 Origin，只允许 http://127.0.0.1:<port> / http://localhost:<port>
+    origin = request.headers.get("origin") or ""
+    if origin:
+        try:
+            o = urlparse(origin)
+            hostname = (o.hostname or "").lower()
+        except Exception:
+            raise HTTPException(status_code=403, detail="invalid origin")
+        if hostname not in ("127.0.0.1", "localhost", "::1"):
+            raise HTTPException(status_code=403, detail="invalid origin")
     if not email_id or "/" in email_id or "\\" in email_id:
         raise HTTPException(status_code=404, detail="not found")
     try:

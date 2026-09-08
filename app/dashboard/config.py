@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
@@ -42,6 +43,7 @@ class DashboardConfig:
     show_sender_email: bool = False
     allow_open_local_file: bool = False
     review_statuses: List[str] = field(default_factory=lambda: list(REVIEW_STATUSES))
+    timezone: str = "Asia/Shanghai"
     source_file: str = ""
 
     def validate(self) -> None:
@@ -52,6 +54,11 @@ class DashboardConfig:
             self.page_size = 30
         if self.max_page_size < self.page_size:
             self.max_page_size = self.page_size
+        try:
+            ZoneInfo(self.timezone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise DashboardConfigError(
+                f"invalid dashboard timezone: {self.timezone}") from exc
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -62,6 +69,7 @@ class DashboardConfig:
             "max_page_size": self.max_page_size,
             "default_days": self.default_days,
             "review_statuses": list(self.review_statuses),
+            "timezone": self.timezone,
         }
 
 
@@ -97,6 +105,8 @@ def load_dashboard_config(config_dir: Path | str | None = None) -> DashboardConf
             cfg.default_days = int(section["default_days"])
         except (TypeError, ValueError):
             pass
+    if section.get("timezone"):
+        cfg.timezone = str(section["timezone"])
     cfg.show_raw_body = _as_bool(section.get("show_raw_body"), False)
     cfg.show_sender_email = _as_bool(section.get("show_sender_email"), False)
     cfg.allow_open_local_file = _as_bool(section.get("allow_open_local_file"), False)
@@ -124,5 +134,7 @@ def load_dashboard_config(config_dir: Path | str | None = None) -> DashboardConf
             cfg.default_days = int(os.getenv("DASHBOARD_DEFAULT_DAYS"))
         except ValueError:
             pass
+    if os.getenv("DASHBOARD_TIMEZONE") is not None:
+        cfg.timezone = os.getenv("DASHBOARD_TIMEZONE")
     cfg.validate()
     return cfg

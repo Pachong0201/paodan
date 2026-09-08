@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
@@ -45,7 +46,7 @@ def _page_context(request: Request, filters: Dict[str, Any], page: int,
     }
 
 
-def _common_params(request: Request, days_default: int) -> Dict[str, Any]:
+def _common_params(request: Request, days_default: int, timezone_name: str = "Asia/Shanghai") -> Dict[str, Any]:
     qp = request.query_params
     days_raw = qp.get("days")
     if days_raw in ("today",):
@@ -63,9 +64,9 @@ def _common_params(request: Request, days_default: int) -> Dict[str, Any]:
     date_from = None
     date_to = None
     if days is not None:
-        today = date.today()
-        date_to = today.isoformat()
-        date_from = (today - timedelta(days=days - 1)).isoformat()
+        local_today = datetime.now(ZoneInfo(timezone_name)).date()
+        date_to = local_today.isoformat()
+        date_from = (local_today - timedelta(days=days - 1)).isoformat()
     return {
         "priorities": _parse_priorities(qp.getlist("priority") or ["S", "A", "B"]),
         "track": str(qp.get("track") or "").upper(),
@@ -84,9 +85,10 @@ def homepage(request: Request, page: int = Query(1, ge=1),
     cfg = load_dashboard_config()
     page_size = page_size or cfg.page_size
     page_size = max(1, min(page_size, cfg.max_page_size))
-    filters = _common_params(request, cfg.default_days)
+    filters = _common_params(request, cfg.default_days, cfg.timezone)
     with connect_dashboard(request.app.state.db_path) as conn:
-        stats = get_dashboard_stats(conn, default_days=cfg.default_days)
+        stats = get_dashboard_stats(conn, default_days=cfg.default_days,
+                                    today=datetime.now(ZoneInfo(cfg.timezone)).date().isoformat())
         items, total = list_emails(conn, filters=filters, page=page, page_size=page_size)
     context = _page_context(request, filters, page, page_size, filters.get("days", cfg.default_days),
                             total, items, page_title="首页")
@@ -100,7 +102,7 @@ def review_page(request: Request, page: int = Query(1, ge=1),
     cfg = load_dashboard_config()
     page_size = page_size or cfg.page_size
     page_size = max(1, min(page_size, cfg.max_page_size))
-    filters = _common_params(request, cfg.default_days)
+    filters = _common_params(request, cfg.default_days, cfg.timezone)
     if not filters.get("review_status"):
         filters["review_status"] = ""
     with connect_dashboard(request.app.state.db_path) as conn:

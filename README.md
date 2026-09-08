@@ -1,4 +1,4 @@
-# 台湾政治新闻爆料邮箱智能筛选引擎 V4.2（Local Dashboard MVP）
+# 台湾政治新闻爆料邮箱智能筛选引擎 V4.2.1（Dashboard Privacy Hotfix）
 
 围绕「台湾政治负面新闻标识规则库 V1.0」（`config/news_signal/`）构建的**爆料邮箱新闻线索筛选引擎**：
 从爆料邮箱材料（邮件正文 + 附件）中自动发现值得记者核查的高价值线索，输出 0-100 评分、
@@ -745,3 +745,66 @@ ARCHIVED 已归档
 ```
 
 无 `dashboard_reviews` 行视为 `UNREVIEWED`。
+
+
+---
+
+# V4.2.1 Dashboard Privacy Hotfix
+
+## 展示层隐私过滤
+
+Dashboard 不只不读取 raw body，还会在构造 Safe ViewModel 前对以下派生文本做统一隐私过滤：
+
+```text
+subject
+summary_zh
+reason_for_attention
+verification_targets
+attachment filename
+V2 reason / verification / risk / sequence
+V3 reason
+```
+
+邮箱、手机、台湾身份证、银行卡、路径、Message-ID、API token、LINE ID、精确地址、普通私人姓名等都会在进入 HTML/API 前脱敏。
+
+## Entity 规则
+
+```text
+普通 PERSON 默认不显示。
+
+可显示：
+  ORGANIZATION / COMPANY / GOVERNMENT_AGENCY / PROJECT / LOCATION / ROLE
+  以及明确 TARGET / PUBLIC_PERSON / PUBLIC_ORGANIZATION
+
+V3 公开候选库实体名称继续显示。
+```
+
+## CSRF
+
+人工 Review POST 使用严格 CSRF Token：
+
+```text
+missing token -> 403
+wrong token   -> 403
+valid token   -> 200
+evil Origin   -> 403
+```
+
+## 时区
+
+Dashboard 默认时区：
+
+```text
+Asia/Shanghai
+```
+
+可通过 `DASHBOARD_TIMEZONE` 或 `config/dashboard.yaml` 修改；非法时区启动 FAIL。
+
+## 分数显示
+
+Political / Governance 分数不再从 `final_score` 复制：
+
+```text
+Political = unified.political_score（或 POLITICAL-only 回退）
+Governance = unified.governance_score / scores.governance_score / governance_results.score
+```

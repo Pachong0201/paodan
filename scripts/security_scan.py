@@ -29,7 +29,11 @@ BANK_CANARY_RE = re.compile(r"\b812345678901234567\b")
 KNOWN_CANARY_RE = re.compile(r"\b(?:RAW|ATTACHMENT)_PRIVATE_CANARY_[A-Z0-9]+\b")
 SYNTHETIC_HEADER_RE = re.compile(r"x-paodan-synthetic-fixture\s*:\s*true", re.IGNORECASE)
 EXTERNAL_URL_RE = re.compile(r"https?://", re.IGNORECASE)
-DASHBOARD_FORBIDDEN_IN_TEMPLATES = ("source_path", "cached_path", "body_text", "combined_text")
+DASHBOARD_FORBIDDEN_IN_TEMPLATES = ("source_path", "cached_path", "body_text", "combined_text",
+                                    "sender_email", "attachment_text")
+DASHBOARD_FORBIDDEN_JINJA_TOKENS = ("detail.sender", "item.sender", "email.sender",
+                                     "detail.message_id", "item.message_id",
+                                     ".recipients", ".cc", "raw_email", "raw_eml")
 MANIFEST_FILE = ROOT / "tests" / "fixtures" / "manifest.json"
 
 
@@ -130,6 +134,9 @@ def main() -> int:
                 for token in DASHBOARD_FORBIDDEN_IN_TEMPLATES:
                     if token in text:
                         issues.append(f"{rel}: dashboard template contains forbidden raw field token {token}")
+                for token in DASHBOARD_FORBIDDEN_JINJA_TOKENS:
+                    if token in text:
+                        issues.append(f"{rel}: dashboard template contains forbidden Jinja field token {token}")
     for path in files:
         if not path.exists():
             # index 中可能残留已移动/删除的旧路径；以 working tree 实际文件为准。

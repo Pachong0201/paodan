@@ -14,6 +14,7 @@ from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from .privacy import dashboard_safe_list, dashboard_safe_text
 from .view_models import (
     AttachmentInfo,
     DashboardStats,
@@ -28,7 +29,8 @@ from .view_models import (
 
 REVIEW_STATUSES = set(REVIEW_STATUS_LABELS.keys())
 SAFE_ENTITY_TYPES = {
-    "PERSON", "ORGANIZATION", "COMPANY", "GOVERNMENT_AGENCY",
+    "TARGET", "PUBLIC_PERSON", "PUBLIC_ORGANIZATION",
+    "ORGANIZATION", "COMPANY", "GOVERNMENT_AGENCY",
     "POLITICAL_PARTY", "PROJECT", "LOCATION", "ROLE",
 }
 PRIORITY_CASE = "CASE sc.priority WHEN 'S' THEN 5 WHEN 'A' THEN 4 WHEN 'B' THEN 3 WHEN 'C' THEN 2 ELSE 1 END"
@@ -141,8 +143,9 @@ def _build_list_sql(filters: Dict[str, Any], for_review: bool = False) -> tuple[
         params.extend([like, like, like])
     search = (filters.get("q") or "").strip()
     if search:
+        # 只搜 subject / summary_zh / LLM one_sentence_summary，不搜整个 llm_json。
         where.append("(e.subject LIKE ? OR COALESCE(rq.summary_zh,'') LIKE ? OR "
-                     "COALESCE(ll.llm_json,'') LIKE ?)")
+                     "COALESCE(json_extract(ll.llm_json, '$.one_sentence_summary'),'') LIKE ?)")
         like = f"%{search}%"
         params.extend([like, like, like])
 
@@ -190,13 +193,13 @@ def _row_to_list_item(row: sqlite3.Row) -> EmailListItem:
     status = str(row["review_status"] or "UNREVIEWED")
     return EmailListItem(
         email_id=str(row["email_id"]),
-        subject=str(row["subject"] or ""),
+        subject=dashboard_safe_text(row["subject"] or ""),
         priority=str(row["priority"] or "D"),
         final_score=float(row["final_score"] or 0.0),
         primary_track=str(row["primary_track"] or "NONE"),
         political_categories=pol_cats,
         governance_categories=gov_cats,
-        summary=_summary_from_row(row),
+        summary=dashboard_safe_text(_summary_from_row(row)),
         review_status=status,
         review_status_label=REVIEW_STATUS_LABELS.get(status, status),
         processed_at=str(row["processed_at"] or ""),
@@ -211,7 +214,8 @@ def list_emails(conn: sqlite3.Connection, filters: Optional[Dict[str, Any]] = No
     count_sql = "SELECT COUNT(*) FROM (" + sql.replace(
         "ORDER BY " + PRIORITY_CASE + " DESC, sc.final_score DESC, e.processed_at DESC", "") + ")"
     count = int(conn.execute(count_sql, params).fetchone()[0] or 0)
-    page = max(1, page)
+    total_pages = max(1, (count + page_size - 1) // page_size)
+    page = min(max(1, page), total_pages)
     offset = (page - 1) * page_size
     rows = conn.execute(sql + " LIMIT ? OFFSET ?", params + [page_size, offset]).fetchall()
     return [_row_to_list_item(r) for r in rows], count
@@ -225,7 +229,8 @@ def list_review_queue(conn: sqlite3.Connection, filters: Optional[Dict[str, Any]
     count_sql = "SELECT COUNT(*) FROM (" + sql.replace(
         "ORDER BY " + PRIORITY_CASE + " DESC, sc.final_score DESC, e.processed_at DESC", "") + ")"
     count = int(conn.execute(count_sql, params).fetchone()[0] or 0)
-    page = max(1, page)
+    total_pages = max(1, (count + page_size - 1) // page_size)
+    page = min(max(1, page), total_pages)
     offset = (page - 1) * page_size
     order_sql = (
         "CASE COALESCE(dr.review_status,'UNREVIEWED') WHEN 'PRIORITY' THEN 0 ELSE 1 END, "
@@ -249,6 +254,41 @@ def _entity_text_safe(text: str) -> bool:
     if any(ch.isdigit() for ch in s) and len([c for c in s if c.isdigit()]) >= 6:
         return False
     return True
+
+
+def _resolve_political_score(unified: Any, score: Any) -> float:
+    if isinstance(unified, dict) and unified.get("political_score") is not None:
+        try:
+            return float(unified["political_score"])
+        except (TypeError, ValueError):
+            pass
+    if score is not None:
+        # 仅在 POLITICAL-only 且没有 unified 分数时才回退 final_score。
+        if str(score["primary_track"] or "") == "POLITICAL":
+            try:
+                return float(score["final_score"] or 0.0)
+            except (TypeError, ValueError):
+                pass
+    return 0.0
+
+
+def _resolve_governance_score(unified: Any, score: Any, gov: Any) -> float:
+    if isinstance(unified, dict) and unified.get("governance_score") is not None:
+        try:
+            return float(unified["governance_score"])
+        except (TypeError, ValueError):
+            pass
+    if score is not None and score["governance_score"] is not None:
+        try:
+            return float(score["governance_score"])
+        except (TypeError, ValueError):
+            pass
+    if gov is not None and gov["score"] is not None:
+        try:
+            return float(gov["score"])
+        except (TypeError, ValueError):
+            pass
+    return 0.0
 
 
 def get_email_detail(conn: sqlite3.Connection, email_id: str) -> Optional[EmailDetail]:
@@ -303,14 +343,14 @@ def get_email_detail(conn: sqlite3.Connection, email_id: str) -> Optional[EmailD
     if not isinstance(llm_json, dict):
         llm_json = {}
 
-    summary = str((review_q["summary_zh"] if review_q and review_q["summary_zh"] else "")
-                  or llm_json.get("one_sentence_summary") or "")
-    reason = str(llm_json.get("reason_for_attention") or "")
+    summary = dashboard_safe_text((review_q["summary_zh"] if review_q and review_q["summary_zh"] else "")
+                                 or llm_json.get("one_sentence_summary") or "")
+    reason = dashboard_safe_text(llm_json.get("reason_for_attention") or "")
     verification = []
     if review_q and review_q["verification_targets"]:
-        verification = [str(x) for x in safe_json_loads(review_q["verification_targets"], []) or []]
+        verification = dashboard_safe_list(safe_json_loads(review_q["verification_targets"], []) or [])
     else:
-        verification = [str(x) for x in (llm_json.get("verification_targets") or []) if x]
+        verification = dashboard_safe_list(llm_json.get("verification_targets") or [])
 
     evidence_shapes = [str(x) for x in (unified.get("evidence_shapes") or []) if x]
     money = []
@@ -321,23 +361,29 @@ def get_email_detail(conn: sqlite3.Connection, email_id: str) -> Optional[EmailD
             if amount is not None:
                 money.append({"amount": float(amount), "currency": str(cur)})
 
-    entities = []
+    entities: List[str] = []
+
+    def _add_entity(typ: str, text: str) -> None:
+        if typ not in SAFE_ENTITY_TYPES:
+            return
+        if not _entity_text_safe(text):
+            return
+        safe = dashboard_safe_text(text)
+        if safe and safe not in entities:
+            entities.append(safe)
+
     raw_entities = (unified.get("entities") or []) if isinstance(unified, dict) else []
     for item in raw_entities:
         if isinstance(item, dict):
-            typ = str(item.get("type") or "")
-            text = str(item.get("text") or "")
+            _add_entity(str(item.get("type") or ""), str(item.get("text") or ""))
         else:
-            typ, text = "", str(item)
-        if typ in SAFE_ENTITY_TYPES and _entity_text_safe(text) and text not in entities:
-            entities.append(text)
-    if not entities and isinstance(rule_json, dict):
+            _add_entity("", str(item))
+    if isinstance(rule_json, dict):
         for item in (rule_json.get("entities") or []):
-            typ = str(item.get("type") or "") if isinstance(item, dict) else ""
-            text = str(item.get("text") or "") if isinstance(item, dict) else str(item)
-            if typ in SAFE_ENTITY_TYPES and _entity_text_safe(text) and text not in entities:
-                entities.append(text)
-
+            if isinstance(item, dict):
+                _add_entity(str(item.get("type") or ""), str(item.get("text") or ""))
+            else:
+                _add_entity("", str(item))
     pattern_ids = list(dict.fromkeys(pol_patterns + gov_patterns))
 
     release_dict = None
@@ -347,6 +393,22 @@ def get_email_detail(conn: sqlite3.Connection, email_id: str) -> Optional[EmailD
                     "formal_referral_type", "release_risks", "recommended_release_sequence",
                     "rule_hits"):
             release_dict[col] = safe_json_loads(release[col], [])
+        for col in ("reason", "headline_angle", "editor_note"):
+            if release_dict.get(col) is not None:
+                release_dict[col] = dashboard_safe_text(release_dict[col])
+        for col in ("verification_before_release", "release_risks", "secondary_routes",
+                    "avoid_routes", "formal_referral_type", "rule_hits"):
+            release_dict[col] = dashboard_safe_list(release_dict[col] or [])
+        # sequence 内 action/reason 自由文本脱敏
+        seq = []
+        for item in release_dict.get("recommended_release_sequence") or []:
+            if isinstance(item, dict):
+                item = dict(item)
+                for k in ("action", "reason", "route"):
+                    if item.get(k) is not None:
+                        item[k] = dashboard_safe_text(item[k])
+            seq.append(item)
+        release_dict["recommended_release_sequence"] = seq
 
     named_infos = []
     for r in named_rows:
@@ -358,8 +420,8 @@ def get_email_detail(conn: sqlite3.Connection, email_id: str) -> Optional[EmailD
             entity_name=str(r["entity_name"] or r["entity_id"] or ""),
             entity_type=str(r["entity_type"] or ""),
             fit_score=float(r["fit_score"] or 0.0),
-            reason=str(r["reason"] or ""),
-            roles=[str(x) for x in roles if x],
+            reason=dashboard_safe_text(r["reason"] or ""),
+            roles=dashboard_safe_list(roles),
         ))
 
     att_infos = []
@@ -369,7 +431,7 @@ def get_email_detail(conn: sqlite3.Connection, email_id: str) -> Optional[EmailD
         except Exception:
             warn = 0
         att_infos.append(AttachmentInfo(
-            filename=str(a["filename"] or ""),
+            filename=dashboard_safe_text(a["filename"] or ""),
             file_type=str(a["file_type"] or ""),
             extraction_status=str(a["extraction_status"] or ""),
             warnings_count=int(warn),
@@ -387,13 +449,13 @@ def get_email_detail(conn: sqlite3.Connection, email_id: str) -> Optional[EmailD
 
     return EmailDetail(
         email_id=eid,
-        subject=str(email["subject"] or ""),
+        subject=dashboard_safe_text(email["subject"] or ""),
         processed_at=str(email["processed_at"] or ""),
         priority=str(score["priority"] if score else "D"),
         final_score=float(score["final_score"] if score else 0.0),
         primary_track=str(score["primary_track"] if score else "NONE"),
-        political_score=float(score["final_score"] if score else 0.0),
-        governance_score=float(score["governance_score"] if score else 0.0),
+        political_score=_resolve_political_score(unified, score),
+        governance_score=_resolve_governance_score(unified, score, gov),
         political_categories=pol_cats,
         governance_categories=gov_cats,
         political_patterns=pol_patterns,

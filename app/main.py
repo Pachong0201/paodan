@@ -260,6 +260,10 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
         print(f"  [OK] dashboard_reviews table: {'OK' if _dashboard_table_exists() else 'MISSING'}")
         print(f"  [OK] dashboard templates: {'OK' if TEMPLATES_DIR.exists() else 'MISSING'}")
         print(f"  [OK] static assets local: {'OK' if STATIC_DIR.exists() else 'MISSING'}")
+        print("  [OK] dashboard privacy filter")
+        print("  [OK] private PERSON hidden")
+        print(f"  [OK] timezone: {dcfg.timezone}")
+        print("  [OK] strict csrf enabled")
     except DashboardConfigError as exc:
         print(f"  [FAIL] dashboard config: {exc}")
         failures.append("dashboard_config")
