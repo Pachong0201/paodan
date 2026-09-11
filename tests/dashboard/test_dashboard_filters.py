@@ -35,26 +35,36 @@ def _seed(path):
     return create_app(path)
 
 
+def _shows(html: str, email_id: str) -> bool:
+    """按「邮件行链接」判断，而不是裸 id 子串。
+
+    页面内嵌随机 CSRF token（secrets.token_urlsafe(24)），裸 id 子串
+    （如 "f_a"）理论上可能恰好命中，造成偶发假失败。
+    /emails/<id> 只可能来自真实邮件行。
+    """
+    return f"/emails/{email_id}" in html
+
+
 def test_priority_filter(tmp_path):
     client = TestClient(_seed(tmp_path / "d.db"))
     html = client.get("/", params={"priority": "A"}).text
-    assert "f_a" in html and "f_g" in html
-    assert "f_m" not in html
+    assert _shows(html, "f_a") and _shows(html, "f_g")
+    assert not _shows(html, "f_m")
 
 
 def test_track_filter(tmp_path):
     client = TestClient(_seed(tmp_path / "d.db"))
     html = client.get("/", params={"track": "GOVERNANCE"}).text
-    assert "f_g" in html and "f_a" not in html and "f_m" not in html
+    assert _shows(html, "f_g") and not _shows(html, "f_a") and not _shows(html, "f_m")
 
 
 def test_category_filter(tmp_path):
     client = TestClient(_seed(tmp_path / "d.db"))
     html = client.get("/", params={"category": "G03"}).text
-    assert "f_g" in html and "f_a" not in html
+    assert _shows(html, "f_g") and not _shows(html, "f_a")
 
 
 def test_search_gate(tmp_path):
     client = TestClient(_seed(tmp_path / "d.db"))
-    assert "f_a" in client.get("/", params={"q": "市府"}).text
-    assert "f_a" not in client.get("/", params={"q": "不存在詞"}).text
+    assert _shows(client.get("/", params={"q": "市府"}).text, "f_a")
+    assert not _shows(client.get("/", params={"q": "不存在詞"}).text, "f_a")

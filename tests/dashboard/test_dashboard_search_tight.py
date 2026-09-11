@@ -28,7 +28,17 @@ def _seed(path):
     return create_app(path)
 
 
+def _shows(html: str, email_id: str) -> bool:
+    """按「邮件行链接」判断邮件是否出现，而不是裸 id 子串。
+
+    页面内嵌随机 CSRF token（secrets.token_urlsafe(24)）。裸 "s1" 有约 0.75%
+    概率恰好落在 token 里（例如 44MeCyRNd_s1O29mNL1w7tqDBMs），会造成偶发假失败；
+    这正是曾把 CI 打红的原因。/emails/<id> 只可能来自真实邮件行。
+    """
+    return f"/emails/{email_id}" in html
+
+
 def test_search_subject_summary(tmp_path):
     client = TestClient(_seed(tmp_path / "d.db"))
-    assert "s1" in client.get("/", params={"q": "停電"}).text
-    assert "s1" not in client.get("/", params={"q": "只在reason出現"}).text
+    assert _shows(client.get("/", params={"q": "停電"}).text, "s1")
+    assert not _shows(client.get("/", params={"q": "只在reason出現"}).text, "s1")
