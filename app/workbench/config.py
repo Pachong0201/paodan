@@ -19,6 +19,9 @@ class WorkbenchImportConfig:
     max_file_size: int = 50 * 1024 * 1024
     max_total_size: int = 500 * 1024 * 1024
     max_compression_ratio: float = 100.0
+    max_file_size_mb: int = 50
+    max_batch_size_mb: int = 500
+    max_files_per_batch: int = 2000
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -27,6 +30,9 @@ class WorkbenchImportConfig:
             "max_file_size": self.max_file_size,
             "max_total_size": self.max_total_size,
             "max_compression_ratio": self.max_compression_ratio,
+            "max_file_size_mb": self.max_file_size_mb,
+            "max_batch_size_mb": self.max_batch_size_mb,
+            "max_files_per_batch": self.max_files_per_batch,
         }
 
 
@@ -52,6 +58,14 @@ def load_workbench_config(config_dir: Path | str | None = None) -> WorkbenchImpo
                     cfg.max_compression_ratio = float(imp["max_compression_ratio"])
                 except (TypeError, ValueError):
                     pass
+            for key in ("max_file_size_mb", "max_batch_size_mb", "max_files_per_batch"):
+                if imp.get(key) is not None:
+                    try:
+                        setattr(cfg, key, int(imp[key]))
+                    except (TypeError, ValueError):
+                        pass
+            cfg.max_file_size = cfg.max_file_size_mb * 1024 * 1024
+            cfg.max_total_size = cfg.max_batch_size_mb * 1024 * 1024
     if os.getenv("WORKBENCH_IMPORT_RECURSIVE") is not None:
         cfg.recursive = str(os.getenv("WORKBENCH_IMPORT_RECURSIVE")).strip().lower() not in ("0", "false", "no", "off", "")
     if os.getenv("WORKBENCH_IMPORT_MAX_NESTING_DEPTH") is not None:

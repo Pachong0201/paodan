@@ -57,7 +57,8 @@ PATTERNS: List[Tuple[str, Pattern[str], str]] = [
      "[REDACTED_PERSON]"),
     ("EN_NAME", re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}\b"), "[REDACTED_PERSON]"),
     ("ADDRESS", re.compile(
-        r"(?:地址|住址|住所|地址為|地址为|戶籍|户籍)[：:\s]*([^\s，。；;]{4,})"), "[REDACTED_ADDRESS]"),
+        r"(?:地址|住址|住所|地址為|地址为|戶籍|户籍)[：:\s]*(?!\[REDACTED)([^\s，。；;\[：:]{4,})"),
+     "[REDACTED_ADDRESS]"),
     ("MESSAGE_ID", re.compile(r"<[^<>\s@]+@[^<>\s]+>"), "[REDACTED_MESSAGE_ID]"),
     ("WINDOWS_PATH", re.compile(r"(?:[A-Za-z]:\\[^\s<>\"'|?*]+|\\\\[^\\/\s]+\\[^\s<>\"'|?*]+)"),
      "[REDACTED_PATH]"),
@@ -74,8 +75,16 @@ PATTERNS: List[Tuple[str, Pattern[str], str]] = [
      "[REDACTED_EMAIL]"),
     ("TAIWAN_ID", re.compile(r"(?<![A-Za-z0-9])[A-Za-z][12]\d{8}(?![A-Za-z0-9])"), "[REDACTED_TW_ID]"),
     ("BANK_ACCOUNT", re.compile(r"(?<![A-Za-z0-9])\d{10,20}(?![A-Za-z0-9])"), "[REDACTED_ACCOUNT]"),
+    ("PHONE", re.compile(
+        r"(?<!\d)(?:\+?886[- ]?)?(?:09\d{2}[- ]?\d{3}[- ]?\d{3}|"
+        r"0\d{1,2}[- ]?\d{3,4}[- ]?\d{3,4}|\(\d{2,3}\)\s?\d{3,4}[- ]?\d{3,4})(?!\d)"),
+     "[REDACTED_PHONE]"),
     ("PHONE", re.compile(r"(?<!\d)(?:\+?886[- ]?)?(?:09\d{8}|0\d{1,2}[- ]?\d{6,8})(?!\d)"),
      "[REDACTED_PHONE]"),
+    ("ADDRESS", re.compile(
+        r"(?:台北|新北|桃园|台中|台南|高雄|基隆|新竹|苗栗|彰化|南投|云林|嘉义|屏东|宜兰|花莲|台东|澎湖|金门|连江)"
+        r"[市縣]?[\u4e00-\u9fff0-9]{0,20}(?:路|街|大道|段)[\u4e00-\u9fff0-9段巷弄號号]{1,30}"),
+     "[REDACTED_ADDRESS]"),
     ("IP", re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "[REDACTED_IP]"),
     ("USERNAME_HANDLE", re.compile(r"(?<![\w.])@[A-Za-z0-9_.-]{3,}"), "[REDACTED_USERNAME]"),
 ]
@@ -87,8 +96,8 @@ ORDER = {
     "CN_NAME_VERB": 2, "CN_NAME_CONTACT": 3, "CN_NAME_GENERIC": 4, "EN_NAME": 5, "ADDRESS": 6,
     "WINDOWS_PATH": 7, "UNIX_PATH": 8, "MESSAGE_ID": 9, "API_KEY": 10,
     "BEARER_TOKEN": 11, "PASSWORD_SECRET": 12, "LINE_ID": 13, "EMAIL": 14,
-    "TAIWAN_ID": 15, "PHONE": 16, "BANK_ACCOUNT": 17, "IP": 18,
-    "USERNAME_HANDLE": 19,
+    "TAIWAN_ID": 15, "PHONE": 16, "ADDRESS": 17, "BANK_ACCOUNT": 18, "IP": 19,
+    "USERNAME_HANDLE": 21,
 }
 
 

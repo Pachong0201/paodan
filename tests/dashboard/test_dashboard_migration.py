@@ -36,7 +36,8 @@ def test_dashboard_migration_creates_reviews_and_preserves_old_data(tmp_path):
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "dashboard_reviews" in tables
     version = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
-    assert version == SCHEMA_VERSION == 4
+    assert version == SCHEMA_VERSION
+    assert version >= 4
     rows = conn.execute("SELECT email_id, subject FROM emails").fetchall()
     assert len(rows) == 1 and rows[0][0] == "e1"
     conn.close()

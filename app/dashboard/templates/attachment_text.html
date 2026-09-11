@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ att.filename }} | Paodan Reader{% endblock %}
+{% block content %}
+<div class="sensitive-banner">⚠ 敏感原始材料，仅限本机查看</div>
+<h2>{{ att.filename }}</h2>
+<dl>
+  <dt>Type</dt><dd>{{ att.file_type }}</dd>
+  <dt>Status</dt><dd>{{ att.extraction_status }}</dd>
+</dl>
+<pre class="raw-body">{{ att.text }}</pre>
+{% endblock %}

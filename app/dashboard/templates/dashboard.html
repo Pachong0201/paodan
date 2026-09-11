@@ -1,6 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Paodan Dashboard{% endblock %}
 {% block content %}
+<section class="workbench-hero">
+  <div class="workbench-status">
+    <div class="status-line"><span class="dot ok"></span> 系统：就绪</div>
+    <div class="status-line">AI：{{ workbench.selected_profile_name }}
+      {% if not workbench.selected_profile_status.available %}<span class="warn">（不可用：{{ workbench.selected_profile_status.message }}）</span>{% endif %}
+    </div>
+    <div class="status-line">待处理：{{ workbench.ready_import.accepted_files if workbench.ready_import else 0 }} 封</div>
+  </div>
+  <div class="workbench-actions">
+    <a class="btn-primary" href="/import">＋ 导入邮件</a>
+    <form method="post" action="/jobs/start" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ request.app.state.csrf_token }}">
+      <input type="hidden" name="import_id" value="{{ workbench.ready_import.import_id if workbench.ready_import else '' }}">
+      <button type="submit" {% if not workbench.ready_import or workbench.active_job %}disabled{% endif %}>▶ 开始筛选</button>
+    </form>
+  </div>
+</section>
+
+{% if workbench.active_job %}
+<section class="job-progress" data-job-id="{{ workbench.active_job.job_id }}">
+  <h3>当前任务 {{ workbench.active_job.job_id }}</h3>
+  <div class="progress-line"><span data-field="processed">{{ workbench.active_job.processed_count }}</span> / <span data-field="total">{{ workbench.active_job.total_count }}</span></div>
+  <div class="progress-bar"><div class="progress-fill" data-field="bar"></div></div>
+  <div class="job-counts">S <span data-field="s">{{ workbench.active_job.s_count }}</span>　A <span data-field="a">{{ workbench.active_job.a_count }}</span>　B <span data-field="b">{{ workbench.active_job.b_count }}</span>　失败 <span data-field="failed">{{ workbench.active_job.failed_count }}</span></div>
+  <div>当前：<span data-field="filename">{{ workbench.active_job.current_filename }}</span></div>
+  <form method="post" action="/jobs/{{ workbench.active_job.job_id }}/cancel" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ request.app.state.csrf_token }}">
+    <button type="submit">停止任务</button>
+  </form>
+</section>
+{% endif %}
+
 <section class="track-summary">
   <h2>Track 統計</h2>
   <div class="track-bars">

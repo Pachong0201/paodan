@@ -13,7 +13,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 PIPELINE_VERSION = "4.1.1"
 
 
@@ -248,6 +248,91 @@ def migration_004_v420_dashboard(conn: sqlite3.Connection) -> None:
     _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_emails_processed_at ON emails(processed_at)")
 
 
+def migration_005_v500_workbench(conn: sqlite3.Connection) -> None:
+    """V5.0 Local Workbench: import/job/reader 基础表。"""
+    _add_column(conn, "analysis_runs", "job_id", "TEXT")
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS import_batches (
+            import_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'READY',
+            total_files INTEGER NOT NULL DEFAULT 0,
+            accepted_files INTEGER NOT NULL DEFAULT 0,
+            rejected_files INTEGER NOT NULL DEFAULT 0,
+            duplicate_files INTEGER NOT NULL DEFAULT 0,
+            total_bytes INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            finished_at TEXT,
+            source_type TEXT NOT NULL DEFAULT 'upload',
+            error_summary TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS import_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            import_id TEXT NOT NULL,
+            original_filename TEXT NOT NULL DEFAULT '',
+            stored_filename TEXT NOT NULL DEFAULT '',
+            archive_relative_path TEXT NOT NULL DEFAULT '',
+            source_sha256 TEXT NOT NULL DEFAULT '',
+            size_bytes INTEGER NOT NULL DEFAULT 0,
+            file_type TEXT NOT NULL DEFAULT 'eml',
+            status TEXT NOT NULL DEFAULT 'accepted',
+            error_code TEXT NOT NULL DEFAULT '',
+            email_id TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS analysis_jobs (
+            job_id TEXT PRIMARY KEY,
+            import_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'PENDING',
+            total_count INTEGER NOT NULL DEFAULT 0,
+            processed_count INTEGER NOT NULL DEFAULT 0,
+            success_count INTEGER NOT NULL DEFAULT 0,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            duplicate_count INTEGER NOT NULL DEFAULT 0,
+            s_count INTEGER NOT NULL DEFAULT 0,
+            a_count INTEGER NOT NULL DEFAULT 0,
+            b_count INTEGER NOT NULL DEFAULT 0,
+            c_count INTEGER NOT NULL DEFAULT 0,
+            d_count INTEGER NOT NULL DEFAULT 0,
+            llm_profile_id TEXT NOT NULL DEFAULT '',
+            llm_enabled INTEGER NOT NULL DEFAULT 0,
+            llm_mode TEXT NOT NULL DEFAULT '',
+            llm_model TEXT NOT NULL DEFAULT '',
+            runtime_config_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            started_at TEXT,
+            finished_at TEXT,
+            cancel_requested INTEGER NOT NULL DEFAULT 0,
+            current_filename TEXT NOT NULL DEFAULT '',
+            last_error TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS job_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL,
+            import_file_id INTEGER,
+            email_id TEXT,
+            filename TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'PENDING',
+            priority TEXT NOT NULL DEFAULT '',
+            final_score REAL,
+            error_code TEXT NOT NULL DEFAULT '',
+            started_at TEXT,
+            finished_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS workbench_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL
+        );
+        """
+    )
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_import_files_batch ON import_files(import_id)")
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_import_files_sha ON import_files(source_sha256)")
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_analysis_jobs_import ON analysis_jobs(import_id)")
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_analysis_jobs_status ON analysis_jobs(status)")
+    _safe_index(conn, "CREATE INDEX IF NOT EXISTS idx_job_items_job ON job_items(job_id)")
+
+
 @dataclass
 class Migration:
     version: int
@@ -260,6 +345,7 @@ MIGRATIONS: List[Migration] = [
     Migration(2, "V4.1 finalize indexes and schema version", migration_002_v41_finalize),
     Migration(3, "V4.1.1 deduplicate child tables and add analysis hashes", migration_003_v411_hardening),
     Migration(4, "V4.2 dashboard reviews and query indexes", migration_004_v420_dashboard),
+    Migration(5, "V5.0 workbench import/job/reader tables", migration_005_v500_workbench),
 ]
 
 

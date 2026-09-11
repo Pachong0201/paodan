@@ -20,13 +20,17 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from ..config import DB_PATH
+from ..workbench.job_runner import JobRunner
 from .config import DashboardConfigError, load_dashboard_config
 from .db import connect_dashboard, ensure_database
 from .queries import get_dashboard_stats, list_emails
 from .routes import dashboard as dashboard_routes
 from .routes import emails as email_routes
 from .routes import imports as import_routes
+from .routes import jobs as job_routes
+from .routes import reader as reader_routes
 from .routes import reviews as review_routes
+from .routes import settings as setting_routes
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -35,19 +39,23 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost", "::1", "testserver"]
 
 
 def create_app(db_path: str | Path | None = None,
-               config_dir: str | Path | None = None) -> FastAPI:
+               config_dir: str | Path | None = None,
+               import_staging_root: str | Path | None = None) -> FastAPI:
     cfg = load_dashboard_config(config_dir=config_dir)
     if not cfg.enabled:
         raise DashboardConfigError("Dashboard disabled by config")
     resolved_db = ensure_database(db_path or DB_PATH)
 
-    app = FastAPI(title="Paodan Local Dashboard", docs_url=None,
+    app = FastAPI(title="Paodan V5.0 Local Workbench", docs_url=None,
                   redoc_url=None, openapi_url=None)
     app.state.db_path = resolved_db
     app.state.dashboard_config = cfg
     app.state.csrf_token = secrets.token_urlsafe(24)
     app.state.templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-    app.state.import_staging_root = BASE_DIR.parents[1] / "data" / "import_staging"
+    app.state.import_staging_root = (Path(import_staging_root) if import_staging_root
+                                    else BASE_DIR.parents[1] / "data" / "import_staging")
+    app.state.job_runner = JobRunner(resolved_db, staging_root=app.state.import_staging_root)
+    app.state.job_runner.recover_on_startup()
 
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
@@ -68,6 +76,9 @@ def create_app(db_path: str | Path | None = None,
     app.include_router(dashboard_routes.router)
     app.include_router(email_routes.router)
     app.include_router(import_routes.router)
+    app.include_router(job_routes.router)
+    app.include_router(reader_routes.router)
+    app.include_router(setting_routes.router)
     app.include_router(review_routes.router)
 
     @app.get("/api/stats")
@@ -124,7 +135,7 @@ def main(argv=None) -> int:
         print("Dashboard startup FAIL: %s" % e, file=sys.stderr)
         return 1
     import uvicorn
-    print("Paodan Local Dashboard")
+    print("Paodan V5.0 Local Workbench")
     print(f"http://{cfg.host}:{cfg.port}")
     print(f"database: {Path(resolved_db).name}")
     uvicorn.run(create_app(DB_PATH), host=cfg.host, port=cfg.port, log_level="warning")

@@ -20,7 +20,8 @@
   <td title="{{ track_labels.get(item.primary_track, item.primary_track) }}">
     <span class="badge track-{{ item.primary_track|lower }}">{{ item.primary_track[:3] if item.primary_track else 'NONE' }}</span>
   </td>
-  <td class="subject-cell"><a href="/emails/{{ item.email_id }}">{{ item.subject[:100] or '(無標題)' }}</a></td>
+  <td class="subject-cell"><a href="/emails/{{ item.email_id }}/reader">{{ item.subject[:100] or '(無標題)' }}</a>
+    <a class="mini-link" href="/emails/{{ item.email_id }}">研判</a></td>
   <td class="cats-cell">
     {% for c in (item.political_categories + item.governance_categories)[:4] %}
       <span class="cat">{{ c }}</span>

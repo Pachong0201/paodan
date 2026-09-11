@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import asdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Optional
 
 from .privacy import dashboard_safe_list, dashboard_safe_text
@@ -58,24 +59,33 @@ def _row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
 # Stats
 # ---------------------------------------------------------------------------
 def get_dashboard_stats(conn: sqlite3.Connection, today: str | None = None,
-                        default_days: int = 7) -> DashboardStats:
-    today = today or _today_local()
-    start7 = (date.fromisoformat(today) - timedelta(days=default_days - 1)).isoformat()
+                        default_days: int = 7,
+                        timezone_name: str = "Asia/Shanghai") -> DashboardStats:
+    local_tz = ZoneInfo(timezone_name)
+    today_date = date.fromisoformat(today) if today else datetime.now(local_tz).date()
+    start_local = datetime.combine(today_date, time.min, tzinfo=local_tz)
+    end_local = start_local + timedelta(days=1)
+    start_utc = start_local.astimezone(timezone.utc).isoformat(timespec="seconds")
+    end_utc = end_local.astimezone(timezone.utc).isoformat(timespec="seconds")
+    start7_local = start_local - timedelta(days=default_days - 1)
+    start7_utc = start7_local.astimezone(timezone.utc).isoformat(timespec="seconds")
 
     def one(sql: str, params: tuple) -> int:
         row = conn.execute(sql, params).fetchone()
         return int(row[0] or 0) if row else 0
 
     today_total = one(
-        "SELECT COUNT(*) FROM emails WHERE date(processed_at)=?", (today,))
+        "SELECT COUNT(*) FROM emails WHERE processed_at >= ? AND processed_at < ?",
+        (start_utc, end_utc))
     today_sa = one(
         """SELECT COUNT(*) FROM emails e JOIN scores sc ON sc.email_id=e.email_id
-           WHERE date(e.processed_at)=? AND sc.priority IN ('S','A')""", (today,))
+           WHERE e.processed_at >= ? AND e.processed_at < ? AND sc.priority IN ('S','A')""",
+        (start_utc, end_utc))
     today_gov = one(
         """SELECT COUNT(*) FROM emails e JOIN scores sc ON sc.email_id=e.email_id
-           WHERE date(e.processed_at)=?
+           WHERE e.processed_at >= ? AND e.processed_at < ?
              AND (sc.governance_score > 0 OR sc.primary_track IN ('GOVERNANCE','MIXED'))""",
-        (today,))
+        (start_utc, end_utc))
     pending = one(
         """SELECT COUNT(*) FROM emails e
            JOIN scores sc ON sc.email_id=e.email_id
@@ -84,10 +94,12 @@ def get_dashboard_stats(conn: sqlite3.Connection, today: str | None = None,
              AND COALESCE(dr.review_status,'UNREVIEWED') IN ('UNREVIEWED','VERIFY','PRIORITY')""",
         ())
     recent7_total = one(
-        "SELECT COUNT(*) FROM emails WHERE date(processed_at)>=?", (start7,))
+        "SELECT COUNT(*) FROM emails WHERE processed_at >= ? AND processed_at < ?",
+        (start7_utc, end_utc))
     recent7_sab = one(
         """SELECT COUNT(*) FROM emails e JOIN scores sc ON sc.email_id=e.email_id
-           WHERE date(e.processed_at)>=? AND sc.priority IN ('S','A','B')""", (start7,))
+           WHERE e.processed_at >= ? AND e.processed_at < ? AND sc.priority IN ('S','A','B')""",
+        (start7_utc, end_utc))
 
     rows = conn.execute(
         """SELECT COALESCE(sc.primary_track,'NONE') AS track, COUNT(*) AS n
@@ -129,12 +141,12 @@ def _build_list_sql(filters: Dict[str, Any], for_review: bool = False) -> tuple[
     if filters.get("review_status"):
         where.append("COALESCE(dr.review_status,'UNREVIEWED')=?")
         params.append(filters["review_status"])
-    if filters.get("date_from"):
-        where.append("date(e.processed_at)>=date(?)")
-        params.append(filters["date_from"])
-    if filters.get("date_to"):
-        where.append("date(e.processed_at)<=date(?)")
-        params.append(filters["date_to"])
+    if filters.get("date_from_utc"):
+        where.append("e.processed_at >= ?")
+        params.append(filters["date_from_utc"])
+    if filters.get("date_to_utc"):
+        where.append("e.processed_at < ?")
+        params.append(filters["date_to_utc"])
     category = (filters.get("category") or "").strip().upper()
     if category:
         where.append("(COALESCE(sc.unified_json,'') LIKE ? OR COALESCE(gr.categories_json,'') LIKE ? OR "

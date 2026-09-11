@@ -7,3 +7,6 @@ workbench:
     max_file_size: 52428800        # 50 MB per EML
     max_total_size: 524288000      # 500 MB total uncompressed
     max_compression_ratio: 100.0
+    max_file_size_mb: 50
+    max_batch_size_mb: 500
+    max_files_per_batch: 2000

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}任务中心 | Paodan{% endblock %}
+{% block content %}
+<h2>任务中心</h2>
+<table class="data-table">
+<thead><tr><th>Job ID</th><th>Import</th><th>Status</th><th>进度</th><th>S/A/B</th><th>Profile</th><th>创建时间</th><th>结束时间</th></tr></thead>
+<tbody>
+{% for j in jobs %}
+<tr>
+  <td><a href="/jobs/{{ j.job_id }}">{{ j.job_id }}</a></td>
+  <td>{{ j.import_id }}</td>
+  <td>{{ j.status }}</td>
+  <td>{{ j.processed_count }} / {{ j.total_count }}</td>
+  <td>S{{ j.s_count }} A{{ j.a_count }} B{{ j.b_count }}</td>
+  <td>{{ j.llm_profile_id }}</td>
+  <td>{{ j.created_at }}</td>
+  <td>{{ j.finished_at or '—' }}</td>
+</tr>
+{% else %}
+<tr><td colspan="8">暂无任务</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

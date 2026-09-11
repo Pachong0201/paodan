@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}设置 | Paodan{% endblock %}
+{% block content %}
+<h2>设置</h2>
+<section class="card">
+  <h3>AI 辅助</h3>
+  <form method="post" action="/settings/profile" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ request.app.state.csrf_token }}">
+    <select name="profile_id">
+      {% for p in profiles %}
+      <option value="{{ p.id }}" {% if p.id == current_profile %}selected{% endif %}>
+        {{ p.name }}（{{ p.type }}{% if p.model %} / {{ p.model }}{% endif %}）
+      </option>
+      {% endfor %}
+    </select>
+    <button type="submit">保存</button>
+  </form>
+</section>
+<section class="card">
+  <h3>安全与运行信息（只读）</h3>
+  <dl>
+    <dt>Privacy Level</dt><dd>{{ privacy_level }}</dd>
+    <dt>Allowed Hosts</dt><dd>{{ allowed_hosts|join(', ') }}</dd>
+    <dt>API Key</dt><dd>{{ '已配置' if api_key_configured else '未配置' }}</dd>
+    <dt>LLM Model</dt><dd>{{ llm_model }}</dd>
+    <dt>API Host</dt><dd>{{ llm_base_url_host }}</dd>
+    <dt>Dashboard Timezone</dt><dd>{{ dashboard_timezone }}</dd>
+  </dl>
+</section>
+{% endblock %}

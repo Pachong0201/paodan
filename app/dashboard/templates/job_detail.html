@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ job.job_id }} | Paodan{% endblock %}
+{% block content %}
+<h2>任务 {{ job.job_id }}</h2>
+<section class="card">
+<dl>
+  <dt>Import</dt><dd>{{ job.import_id }}</dd>
+  <dt>Status</dt><dd>{{ job.status }}</dd>
+  <dt>Profile</dt><dd>{{ job.llm_profile_id }} / {{ job.llm_mode }} / {{ job.llm_model }}</dd>
+  <dt>进度</dt><dd>{{ job.processed_count }} / {{ job.total_count }}</dd>
+  <dt>成功/失败/重复</dt><dd>{{ job.success_count }} / {{ job.failed_count }} / {{ job.duplicate_count }}</dd>
+  <dt>S/A/B/C/D</dt><dd>{{ job.s_count }} / {{ job.a_count }} / {{ job.b_count }} / {{ job.c_count }} / {{ job.d_count }}</dd>
+  <dt>创建时间</dt><dd>{{ job.created_at }}</dd>
+  <dt>开始时间</dt><dd>{{ job.started_at or '—' }}</dd>
+  <dt>结束时间</dt><dd>{{ job.finished_at or '—' }}</dd>
+  <dt>错误摘要</dt><dd>{{ job.last_error or '—' }}</dd>
+</dl>
+</section>
+<table class="data-table">
+<thead><tr><th>File</th><th>Status</th><th>Priority</th><th>Score</th><th>Error</th></tr></thead>
+<tbody>
+{% for it in items %}
+<tr><td>{{ it.filename }}</td><td>{{ it.status }}</td><td>{{ it.priority }}</td><td>{{ it.final_score }}</td><td>{{ it.error_code }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

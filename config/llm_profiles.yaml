@@ -1,0 +1,22 @@
+# Paodan V5.0 Workbench LLM Profiles
+# API Key 只来自 .env / 环境变量，禁止写入本文件。
+profiles:
+  "off":
+    name: 关闭 AI
+    type: off
+
+  template:
+    name: 模板模式
+    type: template
+
+  primary:
+    name: 主力模型
+    type: api
+    model_env: LLM_MODEL
+    base_url_env: LLM_BASE_URL
+
+  local:
+    name: 本地模型（如已配置）
+    type: api
+    model: local-model
+    base_url: http://127.0.0.1:11434/v1

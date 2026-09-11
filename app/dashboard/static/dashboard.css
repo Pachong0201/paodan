@@ -58,3 +58,27 @@ h3 { margin:0 0 8px; font-size:15px; border-bottom:1px solid var(--border); padd
 }
 textarea { width:100%; min-height:120px; }
 .save-msg { margin-left:8px; color:#047857; font-weight:600; }
+
+/* V5.0 Workbench */
+.workbench-hero { display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap; }
+.workbench-status .status-line { margin:2px 0; }
+.workbench-actions { display:flex; gap:10px; align-items:center; }
+.btn-primary, .workbench-actions button, .import-form button { background:#1f2937; color:#fff; border:0; border-radius:4px; padding:8px 14px; text-decoration:none; cursor:pointer; }
+.workbench-actions button:disabled { background:#9aa0a6; cursor:not-allowed; }
+.inline-form { display:inline; }
+.dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#9aa0a6; margin-right:6px; }
+.dot.ok { background:#059669; }
+.dot.warn { background:#dc2626; }
+.warn { color:#b3261e; }
+.job-progress { background:#fff; border:1px solid var(--border); border-radius:6px; padding:14px; margin-bottom:14px; }
+.progress-line { font-size:22px; font-weight:600; }
+.progress-bar { height:12px; background:#e5e7eb; border-radius:6px; overflow:hidden; margin:8px 0; }
+.progress-fill { height:100%; width:0; background:#1e66c7; transition:width .3s; }
+.job-counts { margin:6px 0; }
+.mini-link { font-size:11px; margin-left:6px; color:#1e66c7; text-decoration:none; }
+.sensitive-banner { background:#fef3c7; color:#92400e; border:1px solid #f59e0b; padding:8px 12px; border-radius:4px; margin-bottom:10px; font-weight:600; }
+.raw-body { white-space:pre-wrap; word-break:break-word; background:#f9fafb; border:1px solid var(--border); padding:12px; max-height:70vh; overflow:auto; font-family: ui-monospace, Consolas, monospace; }
+.reader-meta { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+.import-form { display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+.import-error { background:#fee2e2; color:#991b1b; padding:8px 12px; border-radius:4px; margin-top:10px; }
+.source-box { margin-top:8px; }

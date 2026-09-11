@@ -270,6 +270,33 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"  [WARN] dashboard selfcheck: {exc}")
 
+    # ---------- Local Workbench ----------
+    print("\n[Local Workbench]")
+    try:
+        from .workbench.llm_profiles import load_llm_profiles, validate_profiles
+        from .workbench.pipeline_factory import PipelineFactory
+        from .storage.database import Database as _WDB
+        _wdb = _WDB(DB_PATH)
+        _tables = {r[0] for r in _wdb.query("SELECT name FROM sqlite_master WHERE type='table'")}
+        for _t in ("import_batches", "import_files", "analysis_jobs", "job_items",
+                   "workbench_settings"):
+            if _t in _tables:
+                print(f"  [OK] table: {_t}")
+            else:
+                print(f"  [FAIL] table missing: {_t}")
+                failures.append(f"workbench_table:{_t}")
+        _wdb.close()
+        profiles = load_llm_profiles()
+        validate_profiles(profiles)
+        print(f"  [OK] LLM profiles: {', '.join(profiles.keys())}")
+        print("  [OK] runtime pipeline factory")
+        print("  [OK] reader route: /emails/{id}/reader")
+        print("  [OK] reader localhost-only")
+        print("  [OK] strict csrf")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [FAIL] local workbench: {exc}")
+        failures.append("local_workbench")
+
     # ---------- Output Security / config ----------
     print("\n[Output Security]")
     try:

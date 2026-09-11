@@ -133,6 +133,10 @@ def main() -> int:
             if p.name == "templates":
                 for token in DASHBOARD_FORBIDDEN_IN_TEMPLATES:
                     if token in text:
+                        # Sensitive Reader 是唯一允许引用 body_text 的模板；
+                        # 其他模板不得直接引用原始正文。
+                        if token == "body_text" and f.name == "email_reader.html":
+                            continue
                         issues.append(f"{rel}: dashboard template contains forbidden raw field token {token}")
                 for token in DASHBOARD_FORBIDDEN_JINJA_TOKENS:
                     if token in text:

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}高价值线索 | Paodan{% endblock %}
+{% block content %}
+<h2>高价值线索</h2>
+<section class="filter-bar">
+  <form method="get" action="/leads">
+    <label>Priority <input type="text" name="priority" value="{{ filters.priorities|join(',') }}"></label>
+    <label>Track
+      <select name="track">
+        <option value="">All</option>
+        {% for t in ['POLITICAL','GOVERNANCE','MIXED','NONE'] %}
+        <option value="{{ t }}" {% if filters.track == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Category <input type="text" name="category" value="{{ filters.category }}"></label>
+    <label>Review
+      <select name="review_status">
+        <option value="">All</option>
+        {% for k,v in review_statuses.items() %}
+        <option value="{{ k }}" {% if filters.review_status == k %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Days
+      <select name="days">
+        {% for d,label in [('today','今日'),('7','7天'),('30','30天'),('all','全部')] %}
+        <option value="{{ d }}" {% if filters.days == d %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Search <input type="search" name="q" value="{{ filters.q }}" maxlength="200"></label>
+    <button type="submit">篩選</button>
+  </form>
+</section>
+{% include "partials/email_table.html" %}
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% if page > 1 %}<a href="?{{ request.url.query }}&page={{ page-1 }}">上一頁</a>{% endif %}
+  <span>{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}<a href="?{{ request.url.query }}&page={{ page+1 }}">下一頁</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

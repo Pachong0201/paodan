@@ -217,6 +217,7 @@ class ImportService:
                  max_file_size: Optional[int] = None,
                  max_total_size: Optional[int] = None,
                  max_compression_ratio: Optional[float] = None,
+                 max_files_per_batch: Optional[int] = None,
                  db_path: str | Path | None = None):
         self.config = load_workbench_config()
         self.recursive = self.config.recursive if recursive is None else bool(recursive)
@@ -226,6 +227,8 @@ class ImportService:
         self.max_total_size = self.config.max_total_size if max_total_size is None else int(max_total_size)
         self.max_compression_ratio = (self.config.max_compression_ratio
                                       if max_compression_ratio is None else float(max_compression_ratio))
+        self.max_files_per_batch = (self.config.max_files_per_batch
+                                    if max_files_per_batch is None else int(max_files_per_batch))
         self.staging_root = Path(staging_root) if staging_root else DEFAULT_STAGING_ROOT
         self.db_path = Path(db_path) if db_path else Path(DB_PATH)
         self.staging_root.mkdir(parents=True, exist_ok=True)
@@ -292,6 +295,13 @@ class ImportService:
                 if not _is_eml_path(normalized):
                     continue
                 result.discovered += 1
+                if result.discovered > self.max_files_per_batch:
+                    item = ImportItem(archive_relative_path=normalized, depth=depth,
+                                      size=int(info.file_size or 0), status="rejected",
+                                      reason="MAX_FILES_EXCEEDED")
+                    result.rejected += 1
+                    result.items.append(item)
+                    continue
                 item = ImportItem(archive_relative_path=normalized, depth=depth,
                                   size=int(info.file_size or 0), status="accepted")
                 if depth > self.max_nesting_depth:
@@ -418,6 +428,49 @@ class ImportService:
         item.staged_path = staged
         result.accepted = 1
         result.items.append(item)
+        self._write_manifest(result)
+        return result
+
+    def import_eml_uploads(self, items: Iterable[tuple[str, bytes]],
+                           import_id: Optional[str] = None) -> ImportBatchResult:
+        iid, import_dir = self._new_import_dir(import_id)
+        result = ImportBatchResult(import_id=iid, staging_dir=str(import_dir))
+        seen_sha: Set[str] = set()
+        for filename, data in items:
+            if result.discovered >= self.max_files_per_batch:
+                item = ImportItem(archive_relative_path=_safe_basename(filename), status="rejected",
+                                  reason="MAX_FILES_EXCEEDED")
+                result.rejected += 1
+                result.items.append(item)
+                continue
+            result.discovered += 1
+            item = ImportItem(archive_relative_path=_safe_basename(filename),
+                              size=len(data), status="accepted")
+            if len(data) > self.max_file_size:
+                item.status = "invalid"
+                item.reason = "FILE_TOO_LARGE"
+                result.invalid += 1
+                result.items.append(item)
+                continue
+            sha = _sha256_bytes(data)
+            item.raw_sha256 = sha
+            if sha in seen_sha:
+                item.status = "duplicate"
+                item.reason = "DUPLICATE_RAW_EML_SHA256"
+                result.duplicates += 1
+                result.items.append(item)
+                continue
+            seen_sha.add(sha)
+            if not _is_valid_eml_bytes(data):
+                item.status = "invalid"
+                item.reason = "INVALID_EML"
+                result.invalid += 1
+                result.items.append(item)
+                continue
+            _, staged = self._stage_bytes(import_dir, data, filename)
+            item.staged_path = staged
+            result.accepted += 1
+            result.items.append(item)
         self._write_manifest(result)
         return result
 

@@ -143,6 +143,7 @@ def test_import_center_page_and_nested_upload(tmp_path):
         "一级/二级/other.eml": _eml("nested2"),
     })
     with open(z, "rb") as f:
-        resp = client.post("/import", files={"file": ("batch.zip", f, "application/zip")})
+        resp = client.post("/import", data={"csrf_token": app.state.csrf_token},
+                           files={"file": ("batch.zip", f, "application/zip")})
     assert resp.status_code == 200
     assert "发现邮件" in resp.text

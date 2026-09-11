@@ -1,4 +1,4 @@
-# 台湾政治新闻爆料邮箱智能筛选引擎 V4.2.1（Dashboard Privacy Hotfix）
+# 台湾政治新闻爆料邮箱智能筛选引擎 V5.0（Local Workbench）
 
 围绕「台湾政治负面新闻标识规则库 V1.0」（`config/news_signal/`）构建的**爆料邮箱新闻线索筛选引擎**：
 从爆料邮箱材料（邮件正文 + 附件）中自动发现值得记者核查的高价值线索，输出 0-100 评分、
@@ -898,4 +898,132 @@ workbench:
   import:
     recursive: true
     max_nesting_depth: 10
+```
+
+
+---
+
+# Paodan V5.0 Local Workbench
+
+## 推荐使用方式
+
+Windows：
+
+```text
+双击 Paodan_Workbench.bat
+```
+
+Linux / macOS / WSL：
+
+```bash
+./install.sh
+python scripts/open_workbench.py
+```
+
+浏览器自动打开：
+
+```text
+http://127.0.0.1:8765
+```
+
+## 基本工作流
+
+```text
+导入邮件
+→ 选择 AI 模式
+→ 开始筛选
+→ 查看进度
+→ 高价值线索
+→ 阅读原始邮件
+→ 查看系统研判
+→ 人工审核
+```
+
+用户不再需要：
+
+```text
+手工复制邮件到 data/inbox
+进入项目根目录运行 CLI
+修改 .env 切换模型
+打开 Review Queue 文件夹寻找 EML
+```
+
+## 导入中心
+
+支持：
+
+```text
+.eml
+多选 .eml
+.zip（递归查找任意层级子目录中的 .eml）
+```
+
+上传后先进入：
+
+```text
+data/import_staging/<import_id>/
+```
+
+导入状态：
+
+```text
+READY
+```
+
+用户点击「开始筛选」后才会创建 Analysis Job。
+
+## 任务中心
+
+- 单 worker 后台执行 ScreeningPipeline
+- 状态写入 SQLite，刷新页面不丢进度
+- 支持停止任务
+- Workbench 重启后运行中任务标记为 INTERRUPTED
+- 每封邮件生成原有 analysis_run，Job 只是外层 Batch
+
+## AI 模式
+
+```text
+关闭 AI      等价 --no-llm，不调用模型
+模板模式     LLM_MODE=template，不调用网络
+API Profile  通过现有 External LLM Privacy Gateway
+```
+
+API Key 只来自 `.env` / 环境变量；页面只显示“已配置/未配置”，不显示任何片段，也不允许页面修改。
+
+Profile 定义：
+
+```text
+config/llm_profiles.yaml
+```
+
+## Sensitive Reader
+
+高价值 S/A/B 邮件标题直接进入：
+
+```text
+/emails/{email_id}/reader
+```
+
+Reader 特点：
+
+- 用户主动点击后允许显示原始正文与附件提取文本
+- 来源信息默认隐藏，点击「显示来源信息」后按需请求
+- 不加载远程图片、远程 CSS、iframe
+- 不调用外部网络
+- 正文按纯文本展示，Jinja autoescape
+- `Cache-Control: no-store`
+
+普通 Dashboard 仍然不显示 raw body；`/emails/{id}` 继续是脱敏分析详情。
+
+## 隐私边界
+
+```text
+Safe Dashboard:
+  脱敏 subject / summary / verification / filename / V2/V3 reason
+
+Sensitive Reader:
+  本地用户主动访问，显示原始本地材料
+
+普通 PERSON 默认不显示；
+公开 V3 候选实体可以显示。
 ```

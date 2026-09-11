@@ -40,10 +40,10 @@ def test_priority_sort_gate(tmp_path):
     assert resp.status_code == 200
     html = resp.text
     # order in html: subjects should appear s,a2,a,b
-    pos_s = html.find('href="/emails/s">subject s')
-    pos_a2 = html.find('href="/emails/a2">subject a2')
-    pos_a = html.find('href="/emails/a">subject a')
-    pos_b = html.find('href="/emails/b">subject b')
+    pos_s = html.find('href="/emails/s/reader">subject s')
+    pos_a2 = html.find('href="/emails/a2/reader">subject a2')
+    pos_a = html.find('href="/emails/a/reader">subject a')
+    pos_b = html.find('href="/emails/b/reader">subject b')
     assert -1 not in (pos_s, pos_a2, pos_a, pos_b)
     assert pos_s < pos_a2 < pos_a < pos_b
 

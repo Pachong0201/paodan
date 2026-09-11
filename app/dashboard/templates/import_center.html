@@ -5,8 +5,9 @@
 <p class="hint">支持 ZIP 中多层文件夹结构，系统会自动递归查找 <code>.eml</code> 邮件。无需先把 EML 全部移动到同一个目录。</p>
 
 <form method="post" action="/import" enctype="multipart/form-data" class="import-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label>选择 ZIP 或 EML 文件
-    <input type="file" name="file" accept=".zip,.eml">
+    <input type="file" name="file" accept=".zip,.eml" multiple>
   </label>
   <button type="submit">开始导入</button>
 </form>
