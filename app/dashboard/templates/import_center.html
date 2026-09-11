@@ -2,12 +2,20 @@
 {% block title %}Import Center | Paodan{% endblock %}
 {% block content %}
 <h2>Import Center</h2>
-<p class="hint">支持 ZIP 中多层文件夹结构，系统会自动递归查找 <code>.eml</code> 邮件。无需先把 EML 全部移动到同一个目录。</p>
+<p class="hint">
+  支持同时选择多个 <code>.eml</code> / <code>.zip</code>；支持 ZIP 多层目录；
+  系统会自动递归发现邮件并按内容 SHA256 去重。
+</p>
 
 <form method="post" action="/import" enctype="multipart/form-data" class="import-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <label>选择 ZIP 或 EML 文件
-    <input type="file" name="file" accept=".zip,.eml" multiple>
+  <label>选择 ZIP 或 EML 文件（可多选）
+    <input
+      type="file"
+      name="files"
+      accept=".zip,.eml"
+      multiple
+    >
   </label>
   <button type="submit">开始导入</button>
 </form>
@@ -21,11 +29,14 @@
   <h3>导入结果</h3>
   <dl>
     <dt>Import ID</dt><dd>{{ result.import_id }}</dd>
+    <dt>来源类型</dt><dd>{{ result.source_type or 'upload' }}</dd>
     <dt>发现邮件</dt><dd>{{ result.discovered }}</dd>
     <dt>合法</dt><dd>{{ result.accepted }}</dd>
     <dt>重复</dt><dd>{{ result.duplicates }}</dd>
     <dt>无效</dt><dd>{{ result.invalid }}</dd>
     <dt>拒绝</dt><dd>{{ result.rejected }}</dd>
+    <dt>上传大小</dt><dd>{{ result.uploaded_bytes }} bytes</dd>
+    <dt>解压后大小</dt><dd>{{ result.uncompressed_bytes }} bytes</dd>
   </dl>
   <table class="data-table">
     <thead><tr><th>相对路径</th><th>状态</th><th>SHA256</th><th>原因</th></tr></thead>

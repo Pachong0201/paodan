@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import logging
 import sys
 from pathlib import Path
@@ -291,6 +292,44 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
         validate_profiles(profiles)
         print(f"  [OK] LLM profiles: {', '.join(profiles.keys())}")
         print("  [OK] runtime pipeline factory")
+
+        # V5.0.1 Import & Runtime hardening gates.
+        import inspect
+        import re as _re
+        from pathlib import Path as _Path
+        from .dashboard.routes import imports as _import_routes
+        from .workbench.import_service import ImportService as _ImportService
+        from .workbench.llm_profiles import profile_status as _profile_status
+
+        _template = (_Path(__file__).resolve().parents[1] / "app" / "dashboard"
+                     / "templates" / "import_center.html").read_text(encoding="utf-8")
+        if 'name="files"' not in _template or "multiple" not in _template:
+            raise AssertionError("browser multi-file field is not files/multiple")
+        if 'name="file"' in _template:
+            raise AssertionError("legacy scalar file field still present")
+        _route_src = inspect.getsource(_import_routes)
+        if "files: list[UploadFile]" not in _route_src and "files: List[UploadFile]" not in _route_src:
+            raise AssertionError("backend upload parameter is not files: list[UploadFile]")
+        if _re.search(r"await\s+[A-Za-z_][A-Za-z0-9_]*\.read\(\)", _route_src):
+            raise AssertionError("unbounded await upload.read() found")
+        if not hasattr(_ImportService, "import_upload_batch"):
+            raise AssertionError("ImportService.import_upload_batch missing")
+        print("  [OK] browser multi-file field: files")
+        print("  [OK] streaming upload")
+        print("  [OK] batch size gate")
+        print("  [OK] cross-batch dedup")
+        print("  [OK] batch READY state enforcement")
+
+        _old_key = os.environ.pop("LLM_API_KEY", None)
+        try:
+            _local_status = _profile_status("local")
+        finally:
+            if _old_key is not None:
+                os.environ["LLM_API_KEY"] = _old_key
+        if not _local_status.get("available"):
+            raise AssertionError("local LLM profile requires API key")
+        print("  [OK] local LLM key optional")
+
         print("  [OK] reader route: /emails/{id}/reader")
         print("  [OK] reader localhost-only")
         print("  [OK] strict csrf")

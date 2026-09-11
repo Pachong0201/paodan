@@ -60,6 +60,8 @@ def start_job(request: Request, csrf_token: Optional[str] = Form(None),
         batch = repo.get_import_batch(import_id)
         if batch is None:
             raise HTTPException(status_code=404, detail="import batch not found")
+        if str(batch.get("status") or "") != "READY" or int(batch.get("accepted_files") or 0) <= 0:
+            raise HTTPException(status_code=409, detail="import batch is not READY")
         profile = get_profile(profile_id or get_selected_profile_id(conn))
         status = profile_status(profile.id)
         if not status.get("available", False):

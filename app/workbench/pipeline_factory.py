@@ -11,6 +11,7 @@ from ..named_channel.advisor import NamedChannelAdvisor
 from ..pipeline.screening_pipeline import ScreeningPipeline
 from ..release_advisor.llm_advisor import ReleaseAdvisor
 from ..rules.config_loader import RuleConfig
+from ..security.classifier import Destination, DestinationClassifier
 from ..security.policy import load_security_policy
 from ..storage.database import Database
 from .models import JobRuntimeConfig
@@ -21,14 +22,20 @@ class PipelineFactoryError(RuntimeError):
 
 
 def build_llm_client(runtime_config: JobRuntimeConfig, policy=None) -> LLMClient:
-    api_key = os.getenv("LLM_API_KEY", "").strip()
-    if not api_key:
-        raise PipelineFactoryError("模型未配置 API Key")
+    policy = policy or load_security_policy()
     base_url = runtime_config.llm_base_url or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     model = runtime_config.llm_model or os.getenv("LLM_MODEL", "gpt-4o-mini")
+    # 必须先通过 DestinationClassifier：LOCAL 无 Key 可用；EXTERNAL 必须 Key。
+    try:
+        destination = DestinationClassifier(policy).classify(base_url)
+    except Exception as exc:  # noqa: BLE001
+        raise PipelineFactoryError(str(exc)) from exc
+    api_key = os.getenv("LLM_API_KEY", "").strip()
+    if destination == Destination.EXTERNAL and not api_key:
+        raise PipelineFactoryError("模型未配置 API Key")
     try:
         return LLMClient(api_key, base_url, model, timeout=LLM_TIMEOUT,
-                         policy=policy or load_security_policy())
+                         policy=policy)
     except LLMError as exc:
         raise PipelineFactoryError(str(exc)) from exc
 

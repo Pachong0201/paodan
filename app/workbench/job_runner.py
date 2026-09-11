@@ -38,14 +38,12 @@ class JobRunner:
         with self._lock:
             with Database(self.db_path) as db:
                 repo = WorkbenchRepository(db.conn)
-                if repo.get_active_job() is not None:
-                    raise JobRunnerError("已有运行中的任务")
-                files = repo.list_ready_files(import_id)
-                if not files:
-                    raise JobRunnerError("该导入批次没有可处理邮件")
-                job_id = repo.create_job(import_id, runtime_config, total_count=len(files))
-                repo.add_job_items(job_id, files)
-                repo.mark_batch_processing(import_id)
+                try:
+                    # 原子校验 batch.status == READY、防重复启动、写 Job + Items、
+                    # READY→PROCESSING；单 worker 锁只是额外保护，不是唯一保护。
+                    job_id = repo.start_job_for_batch(import_id, runtime_config)
+                except ValueError as exc:
+                    raise JobRunnerError(str(exc)) from exc
         self.executor.submit(self._run_job, job_id, import_id, runtime_config)
         return job_id
 
@@ -80,11 +78,15 @@ class JobRunner:
                     repo.set_job_status(job_id, "CANCELLED")
                     repo.mark_batch_completed(import_id, "CANCELLED")
                     return
-                item_id = None
-                items = repo.list_job_items(job_id, status="PENDING")
-                if items:
-                    item_id = items[0]["id"]
-                    repo.update_job_item(item_id, "RUNNING", error_code="")
+                # 按 import_file_id 精确映射 job_item，不依赖两个列表“排序刚好一致”。
+                job_item = repo.get_job_item_for_import_file(job_id, int(f.get("id") or 0))
+                item_id = job_item.get("id") if job_item else None
+                if job_item is None or int(job_item.get("import_file_id") or 0) != int(f.get("id") or 0):
+                    repo.increment_job(job_id, "failed_count")
+                    if item_id is not None:
+                        repo.update_job_item(item_id, "FAILED", error_code="JOB_ITEM_MAPPING_MISMATCH")
+                    continue
+                repo.update_job_item(item_id, "RUNNING", error_code="")
                 repo.update_job_progress(job_id, Path(str(f.get("stored_filename") or "")).name)
                 path = self._staged_path(import_id, f)
                 try:

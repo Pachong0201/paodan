@@ -105,7 +105,7 @@ def homepage(request: Request, page: int = Query(1, ge=1),
         items, total = list_emails(conn, filters=filters, page=page, page_size=page_size)
     with connect_dashboard(request.app.state.db_path) as conn2:
         repo = WorkbenchRepository(conn2)
-        ready_batches = repo.list_import_batches(status="READY", limit=1)
+        ready_batches = repo.list_ready_import_batches(limit=1)
         active_job = repo.get_active_job()
         selected_profile = get_selected_profile_id(conn2)
         selected_status = profile_status(selected_profile)

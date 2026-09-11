@@ -1,4 +1,31 @@
-# 台湾政治新闻爆料邮箱智能筛选引擎 V5.0（Local Workbench）
+# 台湾政治新闻爆料邮箱智能筛选引擎 V5.0.1（Local Workbench）
+
+# V5.0.1 Import & Runtime Final Hardening
+
+本轮只修 Workbench 入口层、导入层、任务状态和 Runtime Profile 的可靠性问题，不新增业务能力：
+
+```text
+P0-1 浏览器多文件上传统一使用 files 字段
+P0-2 多 ZIP / EML+ZIP 混合上传全部处理，一个 Web 请求 = 一个 import batch
+P0-3 Web Upload 改为分块流式落盘，不再整包 await read()
+P1-1 整个 Batch 上传大小与解压后大小分别受 max_batch_size_mb / max_total_size 限制
+P1-2 跨 Import Batch 按 raw EML SHA256 提前识别重复，兼容 emails.raw_sha256
+P1-3 Job Start 只允许 READY Batch，READY→PROCESSING 与 Job 创建同事务，防重复启动
+P1-4 Local LLM（127.0.0.1 / localhost / ::1）无 API Key 可用；External 仍必须 Key
+```
+
+支持的导入工作流：
+
+```text
+一次选择多个 EML / ZIP
+→ ZIP 多层目录递归发现
+→ 流式落盘 + SHA256
+→ 跨 ZIP / EML / 历史 Batch 去重
+→ 生成 READY Batch（0 accepted 为 EMPTY）
+→ 开始筛选
+→ Local LLM 无 Key 可选
+```
+
 
 围绕「台湾政治负面新闻标识规则库 V1.0」（`config/news_signal/`）构建的**爆料邮箱新闻线索筛选引擎**：
 从爆料邮箱材料（邮件正文 + 附件）中自动发现值得记者核查的高价值线索，输出 0-100 评分、
@@ -824,7 +851,7 @@ Governance = unified.governance_score / scores.governance_score / governance_res
 
 ---
 
-# V5.0 Import Center Foundation：嵌套目录邮件包导入
+# V5.0.1 Import Center：多文件 / 流式 / 跨批次去重
 
 ## 支持结构
 
@@ -903,7 +930,7 @@ workbench:
 
 ---
 
-# Paodan V5.0 Local Workbench
+# Paodan V5.0.1 Local Workbench
 
 ## 推荐使用方式
 
@@ -953,9 +980,11 @@ http://127.0.0.1:8765
 支持：
 
 ```text
-.eml
-多选 .eml
-.zip（递归查找任意层级子目录中的 .eml）
+单文件 .eml
+多选 .eml（浏览器字段 files）
+多选 .zip（递归查找任意层级子目录中的 .eml）
+.eml + .zip 混合上传
+流式上传（单文件与整个请求大小门禁，超限立即停止）
 ```
 
 上传后先进入：
@@ -967,7 +996,11 @@ data/import_staging/<import_id>/
 导入状态：
 
 ```text
-READY
+READY       有 accepted 邮件，可开始筛选
+EMPTY       0 accepted，不显示「开始筛选」
+PROCESSING  已创建 Job
+COMPLETED   Job 完成
+FAILED      安全/运行失败
 ```
 
 用户点击「开始筛选」后才会创建 Analysis Job。
@@ -985,7 +1018,8 @@ READY
 ```text
 关闭 AI      等价 --no-llm，不调用模型
 模板模式     LLM_MODE=template，不调用网络
-API Profile  通过现有 External LLM Privacy Gateway
+Local LLM    127.0.0.1 / localhost / ::1，API Key optional
+External     通过现有 External LLM Privacy Gateway，必须配置 API Key
 ```
 
 API Key 只来自 `.env` / 环境变量；页面只显示“已配置/未配置”，不显示任何片段，也不允许页面修改。

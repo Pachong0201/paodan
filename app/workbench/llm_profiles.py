@@ -11,7 +11,7 @@ import yaml
 
 from ..config import LLM_BASE_URL, LLM_MODEL
 from ..security.policy import SecurityPolicy, load_security_policy
-from ..security.classifier import DestinationClassifier
+from ..security.classifier import Destination, DestinationClassifier
 
 
 class LLMProfileError(RuntimeError):
@@ -136,13 +136,14 @@ def profile_status(profile_id: str, policy: Optional[SecurityPolicy] = None) -> 
     result = {"id": p.id, "name": p.name, "type": p.type, "available": True, "message": ""}
     if p.type != "api":
         return result
-    api_key = os.getenv("LLM_API_KEY", "")
-    if not api_key:
-        result.update(available=False, message="模型未配置 API Key")
-        return result
     url = p.resolved_base_url()
     try:
-        DestinationClassifier(policy).classify(url)
+        destination = DestinationClassifier(policy).classify(url)
     except Exception as exc:  # noqa: BLE001
         result.update(available=False, message=f"该模型地址未获安全策略授权: {exc}")
+        return result
+    # 先按 DestinationClassifier 分类：LOCAL 允许无 API Key，EXTERNAL 仍需 Key。
+    if destination == Destination.EXTERNAL and not os.getenv("LLM_API_KEY", "").strip():
+        result.update(available=False, message="模型未配置 API Key")
+        return result
     return result

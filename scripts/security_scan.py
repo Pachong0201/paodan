@@ -115,6 +115,16 @@ def main() -> int:
         pass
     manifest = load_synthetic_manifest()
 
+    # Workbench Upload route 禁止无界 await <upload>.read()：大文件必须分块。
+    upload_route = ROOT / "app" / "dashboard" / "routes" / "imports.py"
+    if upload_route.exists():
+        try:
+            upload_text = upload_route.read_text(encoding="utf-8", errors="replace")
+            if re.search(r"await\s+[A-Za-z_][A-Za-z0-9_]*\.read\(\)", upload_text):
+                issues.append(f"{upload_route.relative_to(ROOT).as_posix()}: unbounded upload.read() without chunk size")
+        except Exception:
+            pass
+
     # Dashboard templates/static 不得引用公网资源或直接渲染敏感字段。
     dashboard_dir = ROOT / "app" / "dashboard"
     for p in [dashboard_dir / "templates", dashboard_dir / "static"]:

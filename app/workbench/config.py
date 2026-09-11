@@ -64,8 +64,13 @@ def load_workbench_config(config_dir: Path | str | None = None) -> WorkbenchImpo
                         setattr(cfg, key, int(imp[key]))
                     except (TypeError, ValueError):
                         pass
-            cfg.max_file_size = cfg.max_file_size_mb * 1024 * 1024
-            cfg.max_total_size = cfg.max_batch_size_mb * 1024 * 1024
+            # 字节字段优先；若只配置了 MB 字段，才换算为字节。
+            # max_file_size 管单封 EML；max_total_size 管解压后总大小；
+            # max_batch_size_mb 管整个 Web 上传请求的压缩文件总大小。
+            if imp.get("max_file_size") is None:
+                cfg.max_file_size = cfg.max_file_size_mb * 1024 * 1024
+            if imp.get("max_total_size") is None:
+                cfg.max_total_size = cfg.max_batch_size_mb * 1024 * 1024
     if os.getenv("WORKBENCH_IMPORT_RECURSIVE") is not None:
         cfg.recursive = str(os.getenv("WORKBENCH_IMPORT_RECURSIVE")).strip().lower() not in ("0", "false", "no", "off", "")
     if os.getenv("WORKBENCH_IMPORT_MAX_NESTING_DEPTH") is not None:
@@ -73,4 +78,19 @@ def load_workbench_config(config_dir: Path | str | None = None) -> WorkbenchImpo
             cfg.max_nesting_depth = int(os.getenv("WORKBENCH_IMPORT_MAX_NESTING_DEPTH"))
         except ValueError:
             pass
+    for env_name, attr in (
+        ("WORKBENCH_IMPORT_MAX_FILE_SIZE_MB", "max_file_size_mb"),
+        ("WORKBENCH_IMPORT_MAX_BATCH_SIZE_MB", "max_batch_size_mb"),
+        ("WORKBENCH_IMPORT_MAX_FILES_PER_BATCH", "max_files_per_batch"),
+        ("WORKBENCH_IMPORT_MAX_TOTAL_SIZE", "max_total_size"),
+    ):
+        raw = os.getenv(env_name)
+        if raw is None:
+            continue
+        try:
+            setattr(cfg, attr, int(raw))
+        except (TypeError, ValueError):
+            continue
+    if os.getenv("WORKBENCH_IMPORT_MAX_FILE_SIZE_MB") is not None:
+        cfg.max_file_size = cfg.max_file_size_mb * 1024 * 1024
     return cfg

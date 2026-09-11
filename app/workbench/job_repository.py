@@ -23,6 +23,20 @@ def _new_job_id() -> str:
     return f"JOB-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
 
+def _batch_status(result) -> str:
+    """V5.0.1：Batch 状态必须由 accepted/discovered/security 结果决定。"""
+    security_failures = int(getattr(result, "security_failures", 0) or 0)
+    if security_failures > 0:
+        return "FAILED"
+    accepted = int(getattr(result, "accepted", 0) or 0)
+    discovered = int(getattr(result, "discovered", 0) or 0)
+    if accepted > 0:
+        return "READY"
+    if discovered > 0:
+        return "EMPTY"
+    return "EMPTY"
+
+
 class WorkbenchRepository:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -32,15 +46,22 @@ class WorkbenchRepository:
     # ------------------------------------------------------------------
     def save_import_result(self, result, source_type: str = "upload") -> str:
         batch = result
+        status = _batch_status(batch)
+        accepted_bytes = int(getattr(batch, "accepted_bytes", 0) or 0)
+        if not accepted_bytes:
+            accepted_bytes = sum(int(getattr(i, "size", 0) or 0) for i in batch.items
+                                 if getattr(i, "status", "") == "accepted")
+        error_summary = "; ".join(str(e) for e in list(getattr(batch, "errors", []))[:5])
+        if int(getattr(batch, "security_failures", 0) or 0) and not error_summary:
+            error_summary = "SECURITY_FAILURE"
         self.conn.execute(
             """INSERT OR REPLACE INTO import_batches
                (import_id, status, total_files, accepted_files, rejected_files,
                 duplicate_files, total_bytes, created_at, finished_at, source_type, error_summary)
                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (batch.import_id, "READY", batch.discovered, batch.accepted,
-             batch.rejected, batch.duplicates,
-             sum(int(getattr(i, "size", 0) or 0) for i in batch.items),
-             _now(), _now(), source_type, "; ".join(batch.errors[:5])))
+            (batch.import_id, status, batch.discovered, batch.accepted,
+             batch.rejected, batch.duplicates, accepted_bytes,
+             _now(), _now(), source_type, error_summary))
         for item in batch.items:
             original = Path(item.archive_relative_path or item.staged_path).name
             stored = Path(item.staged_path).name if item.staged_path else original
@@ -69,9 +90,17 @@ class WorkbenchRepository:
                 "SELECT * FROM import_batches ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
+    def list_ready_import_batches(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """首页只能看到真正有 accepted 邮件的 READY Batch。"""
+        rows = self.conn.execute(
+            """SELECT * FROM import_batches
+               WHERE status='READY' AND accepted_files > 0
+               ORDER BY created_at DESC LIMIT ?""", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
     def ready_import_count(self) -> int:
         row = self.conn.execute(
-            "SELECT COUNT(*) FROM import_batches WHERE status='READY'").fetchone()
+            "SELECT COUNT(*) FROM import_batches WHERE status='READY' AND accepted_files > 0").fetchone()
         return int(row[0] or 0)
 
     def list_ready_files(self, import_id: str) -> List[Dict[str, Any]]:
@@ -81,9 +110,12 @@ class WorkbenchRepository:
                ORDER BY id""", (import_id,)).fetchall()
         return [dict(r) for r in rows]
 
-    def mark_batch_processing(self, import_id: str) -> None:
-        self.conn.execute("UPDATE import_batches SET status='PROCESSING' WHERE import_id=?", (import_id,))
+    def mark_batch_processing(self, import_id: str) -> bool:
+        cur = self.conn.execute(
+            "UPDATE import_batches SET status='PROCESSING' WHERE import_id=? AND status='READY'",
+            (import_id,))
         self.conn.commit()
+        return cur.rowcount == 1
 
     def mark_batch_completed(self, import_id: str, status: str = "COMPLETED") -> None:
         self.conn.execute("UPDATE import_batches SET status=?, finished_at=? WHERE import_id=?",
@@ -106,6 +138,57 @@ class WorkbenchRepository:
              runtime_config.llm_model, runtime_config.to_json(), _now()))
         self.conn.commit()
         return job_id
+
+    def start_job_for_batch(self, import_id: str, runtime_config: JobRuntimeConfig) -> str:
+        """原子创建 Job + job_items 并将 Batch READY→PROCESSING。
+
+        使用 SQLite BEGIN IMMEDIATE + ``UPDATE ... WHERE status='READY'`` 双重保护，
+        因此即使未来单 worker 改为多 worker，同一 Batch 也不可能重复启动。
+        """
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            batch = self.conn.execute(
+                "SELECT status FROM import_batches WHERE import_id=?", (import_id,)).fetchone()
+            if batch is None:
+                raise ValueError("import batch not found")
+            if str(batch["status"]) != "READY":
+                raise ValueError("import batch is not READY")
+            active = self.conn.execute(
+                """SELECT 1 FROM analysis_jobs
+                   WHERE status IN ('PENDING','RUNNING','CANCEL_REQUESTED') LIMIT 1""").fetchone()
+            if active is not None:
+                raise ValueError("已有运行中的任务")
+            files = self.conn.execute(
+                """SELECT * FROM import_files
+                   WHERE import_id=? AND status='accepted' ORDER BY id""", (import_id,)).fetchall()
+            if not files:
+                raise ValueError("该导入批次没有可处理邮件")
+            job_id = _new_job_id()
+            self.conn.execute(
+                """INSERT INTO analysis_jobs
+                   (job_id, import_id, status, total_count, llm_profile_id, llm_enabled,
+                    llm_mode, llm_model, runtime_config_json, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (job_id, import_id, "PENDING", len(files), runtime_config.llm_profile_id,
+                 1 if runtime_config.llm_enabled else 0, runtime_config.llm_mode,
+                 runtime_config.llm_model, runtime_config.to_json(), _now()))
+            for f in files:
+                self.conn.execute(
+                    """INSERT INTO job_items(job_id, import_file_id, filename, status)
+                       VALUES (?,?,?,?)""",
+                    (job_id, f["id"],
+                     Path(f["stored_filename"] or "").name or f["original_filename"] or "",
+                     "PENDING"))
+            cur = self.conn.execute(
+                "UPDATE import_batches SET status='PROCESSING' WHERE import_id=? AND status='READY'",
+                (import_id,))
+            if cur.rowcount != 1:
+                raise ValueError("import batch state changed")
+            self.conn.commit()
+            return job_id
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         return _row(self.conn.execute(
@@ -200,6 +283,14 @@ class WorkbenchRepository:
             rows = self.conn.execute(
                 "SELECT * FROM job_items WHERE job_id=? ORDER BY id", (job_id,)).fetchall()
         return [dict(r) for r in rows]
+
+    def get_job_item_for_import_file(self, job_id: str, import_file_id: int) -> Optional[Dict[str, Any]]:
+        if not import_file_id:
+            return None
+        return _row(self.conn.execute(
+            """SELECT * FROM job_items
+               WHERE job_id=? AND import_file_id=? ORDER BY id LIMIT 1""",
+            (job_id, import_file_id)).fetchone())
 
     def update_job_item(self, item_id: int, status: str, email_id: str = "",
                         priority: str = "", final_score: Optional[float] = None,

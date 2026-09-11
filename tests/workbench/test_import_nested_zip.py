@@ -38,7 +38,7 @@ def _zip(tmp_path: Path, entries: dict) -> Path:
 
 
 def _service(tmp_path: Path, **kw) -> ImportService:
-    return ImportService(staging_root=tmp_path / "staging", **kw)
+    return ImportService(staging_root=tmp_path / "staging", db_path=tmp_path / "svc.db", **kw)
 
 
 def test_case1_one_level(tmp_path):
@@ -136,7 +136,7 @@ def test_import_center_page_and_nested_upload(tmp_path):
     app = create_app(db_path)
     app.state.import_staging_root = tmp_path / "staging"
     client = TestClient(app)
-    assert "支持 ZIP 中多层文件夹结构" in client.get("/import").text
+    assert "支持同时选择多个" in client.get("/import").text
 
     z = _zip(tmp_path, {
         "一级/二级/message.eml": _eml("nested"),
@@ -144,6 +144,6 @@ def test_import_center_page_and_nested_upload(tmp_path):
     })
     with open(z, "rb") as f:
         resp = client.post("/import", data={"csrf_token": app.state.csrf_token},
-                           files={"file": ("batch.zip", f, "application/zip")})
+                           files=[("files", ("batch.zip", f, "application/zip"))])
     assert resp.status_code == 200
     assert "发现邮件" in resp.text

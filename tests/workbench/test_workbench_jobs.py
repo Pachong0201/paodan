@@ -48,7 +48,7 @@ def test_import_start_job_complete_and_persist(tmp_path):
     app, db_path = _app(tmp_path)
     client = TestClient(app)
     r = client.post("/import", data={"csrf_token": app.state.csrf_token},
-                    files={"file": ("batch.zip", _zip_bytes(), "application/zip")})
+                    files=[("files", ("batch.zip", _zip_bytes(), "application/zip"))])
     assert r.status_code == 200
     with Database(db_path) as db:
         repo = WorkbenchRepository(db.conn)
@@ -86,7 +86,7 @@ def test_single_worker_and_cancel(tmp_path):
     app, db_path = _app(tmp_path)
     client = TestClient(app)
     client.post("/import", data={"csrf_token": app.state.csrf_token},
-                files={"file": ("batch.zip", _zip_bytes(), "application/zip")})
+                files=[("files", ("batch.zip", _zip_bytes(), "application/zip"))])
     with Database(db_path) as db:
         repo = WorkbenchRepository(db.conn)
         batch = repo.list_import_batches(status="READY")[0]
@@ -109,7 +109,7 @@ def test_restart_marks_running_interrupted(tmp_path):
     app, db_path = _app(tmp_path)
     client = TestClient(app)
     client.post("/import", data={"csrf_token": app.state.csrf_token},
-                files={"file": ("batch.zip", _zip_bytes(), "application/zip")})
+                files=[("files", ("batch.zip", _zip_bytes(), "application/zip"))])
     with Database(db_path) as db:
         repo = WorkbenchRepository(db.conn)
         batch = repo.list_import_batches(status="READY")[0]

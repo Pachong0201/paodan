@@ -8,8 +8,9 @@
     <input type="hidden" name="csrf_token" value="{{ request.app.state.csrf_token }}">
     <select name="profile_id">
       {% for p in profiles %}
+      {% set st = profile_statuses[p.id] %}
       <option value="{{ p.id }}" {% if p.id == current_profile %}selected{% endif %}>
-        {{ p.name }}（{{ p.type }}{% if p.model %} / {{ p.model }}{% endif %}）
+        {{ p.name }}（{{ p.type }}{% if p.model %} / {{ p.model }}{% endif %}{% if not st.available %}；不可用：{{ st.message }}{% endif %}）
       </option>
       {% endfor %}
     </select>

@@ -83,3 +83,34 @@ def test_pipeline_factory_api_mode_uses_injected_client(monkeypatch):
     assert pipe.llm_screener.mode == "api"
     assert getattr(pipe.llm_screener.client, "is_external", False) is True
     assert calls["model"] == "gpt-test"
+
+
+def test_local_profile_no_key_available(monkeypatch):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    status = profile_status("local")
+    assert status["available"] is True
+    assert "API Key" not in status.get("message", "")
+
+
+def test_unknown_external_host_and_http_blocked(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "sk-test-token")
+    monkeypatch.setenv("LLM_BASE_URL", "https://evil.example.com/v1")
+    assert profile_status("primary")["available"] is False
+    monkeypatch.setenv("LLM_BASE_URL", "http://api.openai.com/v1")
+    assert profile_status("primary")["available"] is False
+
+
+def test_build_llm_client_local_optional_key_and_external_required(monkeypatch):
+    from app.workbench.pipeline_factory import PipelineFactoryError, build_llm_client
+
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    local = build_llm_client(JobRuntimeConfig(
+        llm_enabled=True, llm_mode="api", llm_profile_id="local",
+        llm_model="local-model", llm_base_url="http://127.0.0.1:11434/v1"))
+    assert local.api_key == ""
+    assert local.is_external is False
+
+    with pytest.raises(PipelineFactoryError):
+        build_llm_client(JobRuntimeConfig(
+            llm_enabled=True, llm_mode="api", llm_profile_id="primary",
+            llm_model="gpt-test", llm_base_url="https://api.openai.com/v1"))
