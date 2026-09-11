@@ -820,3 +820,82 @@ Political / Governance 分数不再从 `final_score` 复制：
 Political = unified.political_score（或 POLITICAL-only 回退）
 Governance = unified.governance_score / scores.governance_score / governance_results.score
 ```
+
+
+---
+
+# V5.0 Import Center Foundation：嵌套目录邮件包导入
+
+## 支持结构
+
+```text
+爆料邮件.zip
+├── 000001/
+│   └── message.eml
+├── 000002/
+│   └── message.eml
+└── 一级目录/
+    └── 二级目录/
+        └── message.eml
+```
+
+系统递归发现任意合理深度的 `.eml`，默认：
+
+```text
+recursive = true
+max_nesting_depth = 10
+```
+
+目录名称不参与判断；只根据扩展名和 EML 解析验证识别邮件。
+
+## 安全
+
+- 不使用 `zipfile.extractall()`。
+- 逐条检查 Zip Slip：`../`、绝对路径、Windows drive、NUL 字节。
+- 检查文件大小、总解压大小、压缩比。
+- 超过嵌套深度记为 `NESTING_DEPTH_EXCEEDED` 并拒绝。
+- 去重基于 raw EML SHA256，不基于文件名。
+- staging 结构：
+
+```text
+data/import_staging/<import_id>/
+├── manifest.json
+└── files/
+    └── <sha256>/
+        └── message.eml
+```
+
+同名不同内容不会互相覆盖。
+
+## 使用
+
+```bash
+python -m app.workbench.import_service --zip 爆料邮件.zip
+```
+
+或在 Dashboard 打开：
+
+```text
+http://127.0.0.1:8765/import
+```
+
+上传 ZIP 后会显示：
+
+```text
+发现邮件
+合法
+重复
+无效
+拒绝
+```
+
+`archive_relative_path` 仅用于 Import Center / 诊断，不进入普通高价值线索详情。
+
+## 配置
+
+```yaml
+workbench:
+  import:
+    recursive: true
+    max_nesting_depth: 10
+```

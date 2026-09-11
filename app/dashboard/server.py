@@ -25,6 +25,7 @@ from .db import connect_dashboard, ensure_database
 from .queries import get_dashboard_stats, list_emails
 from .routes import dashboard as dashboard_routes
 from .routes import emails as email_routes
+from .routes import imports as import_routes
 from .routes import reviews as review_routes
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -46,6 +47,7 @@ def create_app(db_path: str | Path | None = None,
     app.state.dashboard_config = cfg
     app.state.csrf_token = secrets.token_urlsafe(24)
     app.state.templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    app.state.import_staging_root = BASE_DIR.parents[1] / "data" / "import_staging"
 
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
@@ -65,6 +67,7 @@ def create_app(db_path: str | Path | None = None,
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     app.include_router(dashboard_routes.router)
     app.include_router(email_routes.router)
+    app.include_router(import_routes.router)
     app.include_router(review_routes.router)
 
     @app.get("/api/stats")

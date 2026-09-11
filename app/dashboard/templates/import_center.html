@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Import Center | Paodan{% endblock %}
+{% block content %}
+<h2>Import Center</h2>
+<p class="hint">支持 ZIP 中多层文件夹结构，系统会自动递归查找 <code>.eml</code> 邮件。无需先把 EML 全部移动到同一个目录。</p>
+
+<form method="post" action="/import" enctype="multipart/form-data" class="import-form">
+  <label>选择 ZIP 或 EML 文件
+    <input type="file" name="file" accept=".zip,.eml">
+  </label>
+  <button type="submit">开始导入</button>
+</form>
+
+{% if error %}
+<div class="import-error">{{ error }}</div>
+{% endif %}
+
+{% if result %}
+<section class="card">
+  <h3>导入结果</h3>
+  <dl>
+    <dt>Import ID</dt><dd>{{ result.import_id }}</dd>
+    <dt>发现邮件</dt><dd>{{ result.discovered }}</dd>
+    <dt>合法</dt><dd>{{ result.accepted }}</dd>
+    <dt>重复</dt><dd>{{ result.duplicates }}</dd>
+    <dt>无效</dt><dd>{{ result.invalid }}</dd>
+    <dt>拒绝</dt><dd>{{ result.rejected }}</dd>
+  </dl>
+  <table class="data-table">
+    <thead><tr><th>相对路径</th><th>状态</th><th>SHA256</th><th>原因</th></tr></thead>
+    <tbody>
+    {% for it in result.items %}
+      <tr><td>{{ it.archive_relative_path }}</td><td>{{ it.status }}</td><td>{{ it.raw_sha256[:12] }}</td><td>{{ it.reason }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

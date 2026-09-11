@@ -1,0 +1,9 @@
+# Paodan V5.0 Workbench Import Center
+workbench:
+  import:
+    # 默认开启递归；真实邮件 ZIP 常有多层目录结构。
+    recursive: true
+    max_nesting_depth: 10
+    max_file_size: 52428800        # 50 MB per EML
+    max_total_size: 524288000      # 500 MB total uncompressed
+    max_compression_ratio: 100.0
