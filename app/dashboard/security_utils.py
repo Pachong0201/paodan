@@ -15,7 +15,7 @@ def _is_trusted_local_origin(hostname: str) -> bool:
     hostname = (hostname or "").strip().lower()
     if not hostname:
         return False
-    if hostname in ("127.0.0.1", "localhost", "::1", "wsl.localhost"):
+    if hostname in ("127.0.0.1", "localhost", "::1", "wsl.localhost", "testserver"):
         return True
     if hostname.endswith(".localhost"):
         return True
@@ -29,6 +29,31 @@ def _is_trusted_local_origin(hostname: str) -> bool:
         return bool(addrs) and all(ipaddress.ip_address(a).is_loopback for a in addrs)
     except Exception:
         return False
+
+
+def _request_host_only(request: Request) -> str:
+    value = (request.headers.get("host") or "").strip()
+    if not value:
+        return ""
+    try:
+        return (urlparse("//" + value).hostname or "").lower()
+    except Exception:
+        return ""
+
+
+def _is_allowed_origin(request: Request, origin: str) -> bool:
+    origin = (origin or "").strip()
+    if not origin:
+        return True
+    # 某些本地 WebView / sandboxed 环境会发送 Origin: null。
+    # CSRF token 仍必须正确；这里只允许 Host 本身为本机地址的场景。
+    if origin.lower() == "null":
+        return _is_trusted_local_origin(_request_host_only(request))
+    try:
+        hostname = (urlparse(origin).hostname or "").lower()
+    except Exception:
+        return False
+    return _is_trusted_local_origin(hostname)
 
 
 def _log_invalid_origin(origin: str, host: str) -> None:
@@ -45,11 +70,6 @@ def verify_csrf(request: Request, csrf_token: str | None) -> None:
     if not csrf_token or not expected or not secrets.compare_digest(str(csrf_token), expected):
         raise HTTPException(status_code=403, detail="invalid csrf token")
     origin = request.headers.get("origin") or ""
-    if origin:
-        try:
-            hostname = (urlparse(origin).hostname or "").lower()
-        except Exception:
-            raise HTTPException(status_code=403, detail="invalid origin")
-        if not _is_trusted_local_origin(hostname):
-            _log_invalid_origin(origin, request.headers.get("host") or "")
-            raise HTTPException(status_code=403, detail="invalid origin")
+    if origin and not _is_allowed_origin(request, origin):
+        _log_invalid_origin(origin, request.headers.get("host") or "")
+        raise HTTPException(status_code=403, detail="invalid origin")

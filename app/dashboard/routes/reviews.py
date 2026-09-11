@@ -11,7 +11,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from ..db import connect_dashboard
 from ..queries import get_review, save_review
 from ..schemas import validate_review_input
-from ..security_utils import _is_trusted_local_origin
+from ..security_utils import _is_allowed_origin
 
 router = APIRouter()
 
@@ -26,14 +26,8 @@ def review_post(request: Request, email_id: str,
         raise HTTPException(status_code=403, detail="invalid csrf token")
     # 第二层：若带 Origin，只允许 http://127.0.0.1:<port> / http://localhost:<port>
     origin = request.headers.get("origin") or ""
-    if origin:
-        try:
-            o = urlparse(origin)
-            hostname = (o.hostname or "").lower()
-        except Exception:
-            raise HTTPException(status_code=403, detail="invalid origin")
-        if not _is_trusted_local_origin(hostname):
-            raise HTTPException(status_code=403, detail="invalid origin")
+    if origin and not _is_allowed_origin(request, origin):
+        raise HTTPException(status_code=403, detail="invalid origin")
     if not email_id or "/" in email_id or "\\" in email_id:
         raise HTTPException(status_code=404, detail="not found")
     try:
