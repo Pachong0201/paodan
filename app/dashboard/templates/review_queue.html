@@ -3,6 +3,26 @@
 {% block content %}
 <h2>Review Queue（人工審核隊列）</h2>
 <p class="hint">系統待審 + 人工標記狀態；人工狀態不會修改自動評分。</p>
+
+<section class="card">
+  <h3>打包導出審核通過郵件</h3>
+  <p class="hint">
+    將人工審核通過的郵件打包為 ZIP，內含原始 EML（若本機仍保留）、manifest.json、
+    reviewed_emails.csv 與說明檔。原始 EML 已不可用時會以資料庫正文回退為 .txt。
+  </p>
+  <form method="post" action="/review/export" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ request.app.state.csrf_token }}">
+    <label>導出範圍
+      <select name="reviewed_status">
+        <option value="VERIFIED">已核實（{{ export_counts["VERIFIED"] }} 封）</option>
+        <option value="PRIORITY">重點跟進（{{ export_counts["PRIORITY"] }} 封）</option>
+        <option value="VERIFIED,PRIORITY">已核實 + 重點跟進（{{ export_counts["VERIFIED,PRIORITY"] }} 封）</option>
+      </select>
+    </label>
+    <button type="submit">打包導出 ZIP</button>
+  </form>
+</section>
+
 <section class="filter-bar">
   <form method="get" action="/review">
     <label>Review

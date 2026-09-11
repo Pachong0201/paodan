@@ -1,17 +1,25 @@
 """人工审核 Review API。"""
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 import secrets
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
+from ...workbench.review_export import (
+    NoReviewedEmailsError,
+    create_review_export_zip,
+    normalize_export_statuses,
+)
 from ..db import connect_dashboard
 from ..queries import get_review, save_review
 from ..schemas import validate_review_input
-from ..security_utils import _is_allowed_origin
+from ..security_utils import _is_allowed_origin, verify_csrf
 
 router = APIRouter()
 
@@ -58,3 +66,36 @@ def get_review_api(request: Request, email_id: str):
         "editor_note": review.editor_note,
         "updated_at": review.updated_at,
     }
+
+
+@router.post("/review/export")
+def export_reviewed(
+    request: Request,
+    csrf_token: Optional[str] = Form(None),
+    reviewed_status: str = Form("VERIFIED"),
+):
+    """把人工审核通过（VERIFIED / PRIORITY）的邮件打包为 ZIP 下载。"""
+    verify_csrf(request, csrf_token)
+    statuses = normalize_export_statuses([reviewed_status])
+    if not statuses:
+        raise HTTPException(status_code=400, detail="invalid review status for export")
+    try:
+        zip_path, count, filename = create_review_export_zip(
+            request.app.state.db_path,
+            request.app.state.import_staging_root,
+            statuses,
+        )
+    except NoReviewedEmailsError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if count <= 0:
+        try:
+            os.unlink(zip_path)
+        except OSError:
+            pass
+        raise HTTPException(status_code=404, detail="没有符合条件的人工审核通过邮件")
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=filename,
+        background=BackgroundTask(lambda p=zip_path: os.path.exists(p) and os.unlink(p)),
+    )

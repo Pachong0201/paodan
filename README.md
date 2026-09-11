@@ -32,6 +32,41 @@ P1-2 中断 / 取消后的 Batch 可恢复
 → 全部完成后 Batch = COMPLETED
 ```
 
+## 人工审核通过邮件打包导出
+
+Review Queue 页面新增：
+
+```text
+打包導出審核通過郵件
+```
+
+选择范围：
+
+```text
+已核实 VERIFIED
+重点跟进 PRIORITY
+已核实 + 重点跟进
+```
+
+导出 ZIP 内容：
+
+```text
+manifest.json         审核/评分/编辑备注元数据
+reviewed_emails.csv   Excel 可读清单
+*.eml                 原始邮件（含附件）
+*.txt                 原始 EML 丢失时的数据库正文回退
+README.txt            导出包说明
+```
+
+安全约束：
+
+```text
+ZIP 条目名使用安全 basename
+不写入本机绝对路径
+不写入未审核邮件
+仅本机下载
+```
+
 # V5.0.1 Import & Runtime Final Hardening
 
 本轮只修 Workbench 入口层、导入层、任务状态和 Runtime Profile 的可靠性问题，不新增业务能力：

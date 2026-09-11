@@ -15,6 +15,7 @@ from ..schemas import normalize_search
 from ..view_models import PRIORITY_RANK, REVIEW_STATUS_LABELS, TRACK_LABELS
 from ...workbench.job_repository import WorkbenchRepository
 from ...workbench.llm_profiles import load_llm_profiles, profile_status
+from ...workbench.review_export import count_exportable_emails
 from ...workbench.runtime_settings import get_selected_profile_id
 
 router = APIRouter()
@@ -148,6 +149,12 @@ def review_page(request: Request, page: int = Query(1, ge=1),
         filters["review_status"] = ""
     with connect_dashboard(request.app.state.db_path) as conn:
         items, total = list_review_queue(conn, filters=filters, page=page, page_size=page_size)
+        export_counts = {
+            "VERIFIED": count_exportable_emails(conn, ["VERIFIED"]),
+            "PRIORITY": count_exportable_emails(conn, ["PRIORITY"]),
+            "VERIFIED,PRIORITY": count_exportable_emails(conn, ["VERIFIED", "PRIORITY"]),
+        }
     context = _page_context(request, filters, page, page_size, filters.get("days", cfg.default_days),
                             total, items, page_title="Review Queue")
+    context["export_counts"] = export_counts
     return request.app.state.templates.TemplateResponse(request, "review_queue.html", context)
