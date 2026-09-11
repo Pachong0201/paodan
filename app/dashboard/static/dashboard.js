@@ -1,4 +1,36 @@
 (function () {
+  // Import form: give immediate feedback for large ZIP uploads.
+  const importForm = document.querySelector('.import-form');
+  if (importForm) {
+    importForm.addEventListener('submit', function (e) {
+      const input = importForm.querySelector('input[type="file"]');
+      const status = document.getElementById('import-status');
+      const button = importForm.querySelector('button[type="submit"]');
+      if (input && (!input.files || input.files.length === 0)) {
+        e.preventDefault();
+        if (status) {
+          status.textContent = '请先选择至少一个 .eml 或 .zip 文件。';
+          status.style.color = '#b3261e';
+        }
+        return;
+      }
+      const count = input && input.files ? input.files.length : 0;
+      let totalBytes = 0;
+      if (input && input.files) {
+        for (const f of input.files) totalBytes += f.size || 0;
+      }
+      const mb = (totalBytes / (1024 * 1024)).toFixed(1);
+      if (status) {
+        status.textContent = `正在上传并导入 ${count} 个文件（约 ${mb} MB），大 ZIP 需要一些时间，请勿关闭页面…`;
+        status.style.color = '#14538c';
+      }
+      if (button) {
+        button.disabled = true;
+        button.textContent = '导入中，请稍候…';
+      }
+    });
+  }
+
   // Dashboard review form
   const form = document.getElementById('review-form');
   if (form) {
