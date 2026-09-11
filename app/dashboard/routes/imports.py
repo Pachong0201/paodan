@@ -99,7 +99,9 @@ async def import_upload(
                     if not chunk:
                         break
                     size += len(chunk)
-                    if max_file_size and size > max_file_size:
+                    # 单封 EML 上限只作用于直接 .eml；ZIP 本体只受整个请求
+                    # max_batch_size 限制，ZIP member 上限由 ImportService 检查。
+                    if suffix == ".eml" and max_file_size and size > max_file_size:
                         raise HTTPException(status_code=413, detail="FILE_TOO_LARGE")
                     total_uploaded += len(chunk)
                     if max_upload_bytes and total_uploaded > max_upload_bytes:

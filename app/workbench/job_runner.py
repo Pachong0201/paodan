@@ -76,7 +76,7 @@ class JobRunner:
             for f in files:
                 if repo.cancel_requested(job_id):
                     repo.set_job_status(job_id, "CANCELLED")
-                    repo.mark_batch_completed(import_id, "CANCELLED")
+                    repo.refresh_batch_status(import_id)
                     return
                 # 按 import_file_id 精确映射 job_item，不依赖两个列表“排序刚好一致”。
                 job_item = repo.get_job_item_for_import_file(job_id, int(f.get("id") or 0))
@@ -99,6 +99,7 @@ class JobRunner:
                     continue
                 if rec is None:
                     repo.increment_job(job_id, "duplicate_count")
+                    repo.mark_import_file_duplicate(f.get("id"))
                     if item_id is not None:
                         repo.update_job_item(item_id, "DUPLICATE", error_code="DUPLICATE")
                     continue
@@ -114,19 +115,23 @@ class JobRunner:
                 if item_id is not None:
                     repo.update_job_item(item_id, "COMPLETED", email_id=rec.email_id,
                                          priority=priority, final_score=score)
-                repo.link_import_file_email(f.get("id"), rec.email_id)
+                repo.mark_import_file_completed(f.get("id"), rec.email_id)
                 try:
                     db.execute("UPDATE analysis_runs SET job_id=? WHERE email_id=?",
                                (job_id, rec.email_id))
                 except Exception:
                     pass
+            if repo.cancel_requested(job_id):
+                repo.set_job_status(job_id, "CANCELLED")
+                repo.refresh_batch_status(import_id)
+                return
             repo.set_job_status(job_id, "COMPLETED")
-            repo.mark_batch_completed(import_id, "COMPLETED")
+            repo.refresh_batch_status(import_id)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Job %s failed", job_id)
             try:
                 repo.set_job_status(job_id, "FAILED", error=type(exc).__name__)
-                repo.mark_batch_completed(import_id, "FAILED")
+                repo.refresh_batch_status(import_id)
             except Exception:
                 pass
         finally:

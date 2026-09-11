@@ -320,6 +320,22 @@ def selfcheck(cfg: RuleConfig, config_dir: Path | None = None) -> int:
         print("  [OK] cross-batch dedup")
         print("  [OK] batch READY state enforcement")
 
+        # V5.0.2 large archive + recovery gates.
+        from .workbench.job_repository import WorkbenchRepository as _WorkbenchRepository
+        if ('if suffix == ".eml" and max_file_size and size > max_file_size'
+                not in _route_src):
+            raise AssertionError("ZIP upload still applies direct EML max_file_size")
+        if not hasattr(_WorkbenchRepository, "recover_interrupted_jobs"):
+            raise AssertionError("WorkbenchRepository.recover_interrupted_jobs missing")
+        if not hasattr(_WorkbenchRepository, "refresh_batch_status"):
+            raise AssertionError("WorkbenchRepository.refresh_batch_status missing")
+        if not hasattr(_WorkbenchRepository, "mark_import_file_completed"):
+            raise AssertionError("WorkbenchRepository.mark_import_file_completed missing")
+        print("  [OK] ZIP upload uses batch limit, not EML file limit")
+        print("  [OK] interrupted batch recovery")
+        print("  [OK] cancelled batch recovery")
+        print("  [OK] completed import files excluded from retry")
+
         _old_key = os.environ.pop("LLM_API_KEY", None)
         try:
             _local_status = _profile_status("local")

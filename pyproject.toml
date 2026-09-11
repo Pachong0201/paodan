@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paodan-news-screening"
-version = "5.0.1"
-description = "Taiwan political/governance complaint email screening engine V5.0.1 with Local Workbench"
+version = "5.0.2"
+description = "Taiwan political/governance complaint email screening engine V5.0.2 with Local Workbench"
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [

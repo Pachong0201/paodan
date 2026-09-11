@@ -83,11 +83,11 @@ class WorkbenchRepository:
     def list_import_batches(self, status: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         if status:
             rows = self.conn.execute(
-                "SELECT * FROM import_batches WHERE status=? ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM import_batches WHERE status=? ORDER BY created_at DESC, rowid DESC LIMIT ?",
                 (status, limit)).fetchall()
         else:
             rows = self.conn.execute(
-                "SELECT * FROM import_batches ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+                "SELECT * FROM import_batches ORDER BY created_at DESC, rowid DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def list_ready_import_batches(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -95,7 +95,7 @@ class WorkbenchRepository:
         rows = self.conn.execute(
             """SELECT * FROM import_batches
                WHERE status='READY' AND accepted_files > 0
-               ORDER BY created_at DESC LIMIT ?""", (limit,)).fetchall()
+               ORDER BY created_at DESC, rowid DESC LIMIT ?""", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def ready_import_count(self) -> int:
@@ -121,6 +121,49 @@ class WorkbenchRepository:
         self.conn.execute("UPDATE import_batches SET status=?, finished_at=? WHERE import_id=?",
                           (status, _now(), import_id))
         self.conn.commit()
+
+    def _count_retryable_import_files(self, import_id: str) -> int:
+        row = self.conn.execute(
+            "SELECT COUNT(*) FROM import_files WHERE import_id=? AND status='accepted'",
+            (import_id,)).fetchone()
+        return int(row[0] or 0)
+
+    def count_retryable_import_files(self, import_id: str) -> int:
+        """返回该 Batch 仍可处理/可重试的 import_files 数量。"""
+        return self._count_retryable_import_files(import_id)
+
+    def has_ready_import_files(self, import_id: str) -> bool:
+        return self._count_retryable_import_files(import_id) > 0
+
+    def _refresh_batch_status_locked(self, import_id: str) -> str:
+        """事务内更新 Batch 状态；调用方负责 commit/rollback。
+
+        accepted > 0 -> READY（保留 remaining accepted_files 数量）
+        accepted == 0 -> COMPLETED
+        """
+        remaining = self._count_retryable_import_files(import_id)
+        if remaining > 0:
+            self.conn.execute(
+                """UPDATE import_batches
+                   SET status='READY', accepted_files=?, finished_at=NULL
+                   WHERE import_id=?""", (remaining, import_id))
+            return "READY"
+        self.conn.execute(
+            """UPDATE import_batches
+               SET status='COMPLETED', accepted_files=0, finished_at=?
+               WHERE import_id=?""", (_now(), import_id))
+        return "COMPLETED"
+
+    def refresh_batch_status(self, import_id: str) -> str:
+        """独立事务版本的 Batch 状态刷新。"""
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            status = self._refresh_batch_status_locked(import_id)
+            self.conn.commit()
+            return status
+        except Exception:
+            self.conn.rollback()
+            raise
 
     # ------------------------------------------------------------------
     # jobs
@@ -196,14 +239,14 @@ class WorkbenchRepository:
 
     def list_jobs(self, limit: int = 50) -> List[Dict[str, Any]]:
         rows = self.conn.execute(
-            "SELECT * FROM analysis_jobs ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+            "SELECT * FROM analysis_jobs ORDER BY created_at DESC, rowid DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
     def get_active_job(self) -> Optional[Dict[str, Any]]:
         return _row(self.conn.execute(
             """SELECT * FROM analysis_jobs
                WHERE status IN ('PENDING','RUNNING','CANCEL_REQUESTED')
-               ORDER BY created_at DESC LIMIT 1""").fetchone())
+               ORDER BY created_at DESC, rowid DESC LIMIT 1""").fetchone())
 
     def set_job_status(self, job_id: str, status: str, error: str = "") -> None:
         fields = ["status=?"]
@@ -252,15 +295,96 @@ class WorkbenchRepository:
         row = self.conn.execute("SELECT cancel_requested FROM analysis_jobs WHERE job_id=?", (job_id,)).fetchone()
         return bool(row and row["cancel_requested"])
 
+    def _reconcile_job_items_locked(self, job_id: str) -> None:
+        """把旧 Job 的 job_items 真相回写到 import_files。
+
+        规则：
+        - COMPLETED + email_id -> import_files.completed
+        - DUPLICATE -> import_files.duplicate
+        - FAILED / RUNNING / PENDING / SKIPPED -> import_files.accepted
+        - RUNNING job_item -> PENDING（旧运行态不再可信）
+        """
+        items = self.conn.execute(
+            "SELECT id, import_file_id, status, email_id FROM job_items WHERE job_id=?",
+            (job_id,)).fetchall()
+        for item in items:
+            import_file_id = item["import_file_id"]
+            if not import_file_id:
+                continue
+            item_status = str(item["status"] or "")
+            if item_status == "COMPLETED":
+                self.conn.execute(
+                    """UPDATE import_files
+                       SET status='completed', email_id=?
+                       WHERE id=?""", (str(item["email_id"] or ""), import_file_id))
+            elif item_status == "DUPLICATE":
+                self.conn.execute(
+                    """UPDATE import_files
+                       SET status='duplicate',
+                           error_code=CASE WHEN error_code='' THEN 'DUPLICATE' ELSE error_code END
+                       WHERE id=?""", (import_file_id,))
+            elif item_status in ("FAILED", "RUNNING", "PENDING", "SKIPPED"):
+                self.conn.execute(
+                    """UPDATE import_files
+                       SET status='accepted'
+                       WHERE id=? AND status NOT IN ('completed','duplicate')""",
+                    (import_file_id,))
+                if item_status == "RUNNING":
+                    self.conn.execute(
+                        """UPDATE job_items
+                           SET status='PENDING', started_at=NULL, finished_at=NULL
+                           WHERE id=?""", (item["id"],))
+
     def recover_interrupted_jobs(self) -> int:
-        rows = self.conn.execute(
-            "SELECT job_id FROM analysis_jobs WHERE status IN ('PENDING','RUNNING','CANCEL_REQUESTED')").fetchall()
-        for r in rows:
-            self.conn.execute(
-                "UPDATE analysis_jobs SET status='INTERRUPTED', finished_at=?, last_error='WORKBENCH_RESTARTED' WHERE job_id=?",
-                (_now(), r["job_id"]))
-        self.conn.commit()
-        return len(rows)
+        """V5.0.2 Workbench 启动恢复：中断 Job 可审计，Batch 重新 READY。
+
+        一次 BEGIN IMMEDIATE 事务内处理 job / job_items / import_files / batch，
+        避免半恢复。已经 COMPLETED / DUPLICATE 的 import_file 绝不重跑。
+        """
+        active_rows = []
+        import_ids: set[str] = set()
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            active_rows = self.conn.execute(
+                """SELECT * FROM analysis_jobs
+                   WHERE status IN ('PENDING','RUNNING','CANCEL_REQUESTED')""").fetchall()
+            for job in active_rows:
+                self.conn.execute(
+                    """UPDATE analysis_jobs
+                       SET status='INTERRUPTED', finished_at=?, last_error='WORKBENCH_RESTARTED'
+                       WHERE job_id=?""", (_now(), job["job_id"]))
+                self._reconcile_job_items_locked(job["job_id"])
+                import_id = str(job["import_id"] or "")
+                if import_id:
+                    import_ids.add(import_id)
+
+            # 兼容 V5.0.1 legacy：Batch 仍 PROCESSING / COMPLETED，但 Job 已
+            # INTERRUPTED/CANCELLED 或直接用旧 bug 结束，仍有 accepted 邮件。
+            legacy_rows = self.conn.execute(
+                """SELECT DISTINCT import_id FROM import_files
+                   WHERE status='accepted'
+                     AND import_id IN (
+                         SELECT import_id FROM import_batches
+                         WHERE status IN ('PROCESSING','COMPLETED','CANCELLED')
+                     )""").fetchall()
+            for row in legacy_rows:
+                import_ids.add(str(row["import_id"]))
+
+            for import_id in import_ids:
+                latest = self.conn.execute(
+                    """SELECT job_id FROM analysis_jobs
+                       WHERE import_id=?
+                       ORDER BY created_at DESC, rowid DESC LIMIT 1""",
+                    (import_id,)).fetchone()
+                if latest is not None:
+                    self._reconcile_job_items_locked(latest["job_id"])
+                self._refresh_batch_status_locked(import_id)
+
+            self.conn.commit()
+            return len(active_rows)
+        except Exception:
+            self.conn.rollback()
+            raise
 
     # ------------------------------------------------------------------
     # job items
@@ -311,6 +435,40 @@ class WorkbenchRepository:
         if import_file_id:
             self.conn.execute("UPDATE import_files SET email_id=? WHERE id=?", (email_id, import_file_id))
             self.conn.commit()
+
+    def mark_import_file_completed(self, import_file_id: Optional[int], email_id: str) -> None:
+        """Job 成功分析后，将该 import_file 标记为 completed。
+
+        completed = 已成功分析，新一轮 Job 不会再处理，也不能被跨 Batch 再次导入。
+        """
+        if not import_file_id:
+            return
+        self.conn.execute(
+            """UPDATE import_files
+               SET status='completed', email_id=?, error_code=''
+               WHERE id=?""", (email_id or "", import_file_id))
+        self.conn.commit()
+
+    def mark_import_file_duplicate(self, import_file_id: Optional[int]) -> None:
+        """pipeline 判定为已有分析结果时，标记为 duplicate（终态，不再重跑）。"""
+        if not import_file_id:
+            return
+        self.conn.execute(
+            """UPDATE import_files
+               SET status='duplicate',
+                   error_code=CASE WHEN error_code='' THEN 'DUPLICATE' ELSE error_code END
+               WHERE id=?""", (import_file_id,))
+        self.conn.commit()
+
+    def mark_import_file_accepted(self, import_file_id: Optional[int]) -> None:
+        """恢复时将未完成/失败/RUNNING 的 import_file 放回可重试状态。"""
+        if not import_file_id:
+            return
+        self.conn.execute(
+            """UPDATE import_files
+               SET status='accepted'
+               WHERE id=? AND status NOT IN ('completed','duplicate')""", (import_file_id,))
+        self.conn.commit()
 
     # ------------------------------------------------------------------
     # settings

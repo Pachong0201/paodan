@@ -1,4 +1,4 @@
-"""Paodan V5.0.1 Import Center foundation.
+"""Paodan V5.0.2 Import Center foundation.
 
 当前版本先提供可复用的 ImportService：
 - 递归发现 ZIP/目录中的 .eml

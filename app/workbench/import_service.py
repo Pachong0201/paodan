@@ -415,36 +415,53 @@ class ImportService:
             raise
 
     # ------------------------------------------------------------------
-    def _is_historical_duplicate(self, sha256: str) -> bool:
-        """跨 Import Batch 去重：查询 import_files 与历史 emails.raw_sha256。"""
+    def _lookup_duplicate_reason(self, sha256: str) -> str:
+        """跨 Import Batch 去重查询；只把终态或仍活跃的批次视为重复。
+
+        V5.0.2 语义：
+        - completed / duplicate import_files：永久历史重复
+        - emails.raw_sha256：旧 Pipeline 已完成结果
+        - 仍处于 READY/PROCESSING 的 accepted：活跃导入重复（不永久锁死）
+        """
         sha256 = str(sha256 or "").strip().lower()
         if not sha256 or not self.db_path or not Path(self.db_path).exists():
-            return False
+            return ""
         conn = None
         try:
             conn = sqlite3.connect(str(self.db_path), timeout=5)
             conn.row_factory = sqlite3.Row
-            # 1) 历史已接受/完成的 import_files
             try:
                 row = conn.execute(
                     """SELECT 1 FROM import_files
-                       WHERE source_sha256=? AND status IN ('accepted','completed','COMPLETED')
+                       WHERE source_sha256=?
+                         AND status IN ('completed','duplicate','COMPLETED','DUPLICATE')
                        LIMIT 1""", (sha256,)).fetchone()
                 if row is not None:
-                    return True
+                    return "DUPLICATE_COMPLETED"
             except sqlite3.OperationalError:
                 pass
-            # 2) 旧 Pipeline 已入库、但没有 import_files 记录的邮件
             try:
                 row = conn.execute(
                     "SELECT 1 FROM emails WHERE raw_sha256=? LIMIT 1", (sha256,)).fetchone()
                 if row is not None:
-                    return True
+                    return "DUPLICATE_EMAIL_DB"
             except sqlite3.OperationalError:
                 pass
-            return False
+            try:
+                row = conn.execute(
+                    """SELECT 1 FROM import_files f
+                       JOIN import_batches b ON b.import_id=f.import_id
+                       WHERE f.source_sha256=?
+                         AND f.status='accepted'
+                         AND b.status IN ('READY','PROCESSING')
+                       LIMIT 1""", (sha256,)).fetchone()
+                if row is not None:
+                    return "DUPLICATE_ACTIVE_IMPORT"
+            except sqlite3.OperationalError:
+                pass
+            return ""
         except sqlite3.Error:
-            return False
+            return ""
         finally:
             if conn is not None:
                 try:
@@ -457,9 +474,7 @@ class ImportService:
             return ""
         if sha256 in state.seen_sha:
             return "DUPLICATE_RAW_EML_SHA256"
-        if self._is_historical_duplicate(sha256):
-            return "DUPLICATE_EXISTING"
-        return ""
+        return self._lookup_duplicate_reason(sha256)
 
     def _accept_candidate(self, state: _BatchState, *, rel_path: str, depth: int,
                           size: int, original_name: str,

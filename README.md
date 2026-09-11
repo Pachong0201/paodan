@@ -1,4 +1,36 @@
-# 台湾政治新闻爆料邮箱智能筛选引擎 V5.0.1（Local Workbench）
+# 台湾政治新闻爆料邮箱智能筛选引擎 V5.0.2（Local Workbench）
+
+# V5.0.2 Recovery & Large Archive Hotfix
+
+本轮只修两个可靠性问题：
+
+```text
+P1-1 ZIP 上传不再套用单封 EML 的 max_file_size 限制
+      直接 .eml    -> max_file_size
+      .zip         -> max_batch_size 上传总量 + ZIP member max_file_size + max_total_size
+      ZIP 本体 200MB / 单封 EML < 50MB -> 正常导入，不再 413 FILE_TOO_LARGE
+
+P1-2 中断 / 取消后的 Batch 可恢复
+      Job INTERRUPTED / CANCELLED 保留审计
+      Batch 自动重新 READY（只要仍有 accepted 邮件）
+      已完成 completed / duplicate 的邮件绝不重跑
+      单封失败保持 accepted，用户下一次「开始筛选」只处理剩余邮件
+```
+
+恢复工作流：
+
+```text
+导入 ZIP/EML
+→ READY
+→ 开始筛选
+→ Workbench 崩溃/关闭
+→ 重启 recovery
+→ 旧 Job = INTERRUPTED
+→ Batch = READY
+→ 用户再次点击「开始筛选」
+→ 新 Job 只包含未完成邮件
+→ 全部完成后 Batch = COMPLETED
+```
 
 # V5.0.1 Import & Runtime Final Hardening
 
@@ -996,11 +1028,11 @@ data/import_staging/<import_id>/
 导入状态：
 
 ```text
-READY       有 accepted 邮件，可开始筛选
+READY       有 accepted 邮件，可开始筛选；中断/取消恢复后也回到此状态
 EMPTY       0 accepted，不显示「开始筛选」
 PROCESSING  已创建 Job
-COMPLETED   Job 完成
-FAILED      安全/运行失败
+COMPLETED   没有 accepted 邮件（所有邮件 completed / duplicate）
+FAILED      导入层安全失败
 ```
 
 用户点击「开始筛选」后才会创建 Analysis Job。
@@ -1011,6 +1043,8 @@ FAILED      安全/运行失败
 - 状态写入 SQLite，刷新页面不丢进度
 - 支持停止任务
 - Workbench 重启后运行中任务标记为 INTERRUPTED
+- 未完成 import_files 自动回到 Batch READY，用户可再次点击开始筛选
+- 已完成 completed / duplicate 邮件不会重复分析
 - 每封邮件生成原有 analysis_run，Job 只是外层 Batch
 
 ## AI 模式

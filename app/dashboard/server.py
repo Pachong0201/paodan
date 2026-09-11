@@ -46,7 +46,7 @@ def create_app(db_path: str | Path | None = None,
         raise DashboardConfigError("Dashboard disabled by config")
     resolved_db = ensure_database(db_path or DB_PATH)
 
-    app = FastAPI(title="Paodan V5.0.1 Local Workbench", docs_url=None,
+    app = FastAPI(title="Paodan V5.0.2 Local Workbench", docs_url=None,
                   redoc_url=None, openapi_url=None)
     app.state.db_path = resolved_db
     app.state.dashboard_config = cfg
@@ -135,7 +135,7 @@ def main(argv=None) -> int:
         print("Dashboard startup FAIL: %s" % e, file=sys.stderr)
         return 1
     import uvicorn
-    print("Paodan V5.0.1 Local Workbench")
+    print("Paodan V5.0.2 Local Workbench")
     print(f"http://{cfg.host}:{cfg.port}")
     print(f"database: {Path(resolved_db).name}")
     uvicorn.run(create_app(DB_PATH), host=cfg.host, port=cfg.port, log_level="warning")

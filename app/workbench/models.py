@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List
 
-APP_VERSION = "5.0.1"
+APP_VERSION = "5.0.2"
 
 IMPORT_STATUSES = {"UPLOADING", "READY", "PROCESSING", "COMPLETED", "EMPTY", "FAILED", "CANCELLED"}
 JOB_STATUSES = {"PENDING", "RUNNING", "COMPLETED", "FAILED", "CANCEL_REQUESTED", "CANCELLED", "INTERRUPTED"}
