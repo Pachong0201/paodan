@@ -11,6 +11,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from ..db import connect_dashboard
 from ..queries import get_review, save_review
 from ..schemas import validate_review_input
+from ..security_utils import _is_trusted_local_origin
 
 router = APIRouter()
 
@@ -31,7 +32,7 @@ def review_post(request: Request, email_id: str,
             hostname = (o.hostname or "").lower()
         except Exception:
             raise HTTPException(status_code=403, detail="invalid origin")
-        if hostname not in ("127.0.0.1", "localhost", "::1"):
+        if not _is_trusted_local_origin(hostname):
             raise HTTPException(status_code=403, detail="invalid origin")
     if not email_id or "/" in email_id or "\\" in email_id:
         raise HTTPException(status_code=404, detail="not found")
