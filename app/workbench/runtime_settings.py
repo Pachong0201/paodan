@@ -21,6 +21,30 @@ def set_setting(conn, key: str, value: str) -> None:
     conn.commit()
 
 
+CUSTOM_LLM_BASE_URL_KEY = "custom_llm_base_url"
+CUSTOM_LLM_MODEL_KEY = "custom_llm_model"
+CUSTOM_LLM_API_KEY_KEY = "custom_llm_api_key"
+
+
+def get_custom_llm_settings(conn) -> dict:
+    """读取设置页自定义 LLM 配置；api_key 仅在本地 SQLite 中使用。"""
+    return {
+        "base_url": get_setting(conn, CUSTOM_LLM_BASE_URL_KEY, ""),
+        "model": get_setting(conn, CUSTOM_LLM_MODEL_KEY, ""),
+        "api_key": get_setting(conn, CUSTOM_LLM_API_KEY_KEY, ""),
+    }
+
+
+def set_custom_llm_settings(conn, base_url: str, model: str,
+                            api_key: str = "", clear_api_key: bool = False) -> None:
+    set_setting(conn, CUSTOM_LLM_BASE_URL_KEY, base_url.strip())
+    set_setting(conn, CUSTOM_LLM_MODEL_KEY, model.strip())
+    if clear_api_key:
+        set_setting(conn, CUSTOM_LLM_API_KEY_KEY, "")
+    elif api_key and api_key.strip():
+        set_setting(conn, CUSTOM_LLM_API_KEY_KEY, api_key.strip())
+
+
 def get_selected_profile_id(conn) -> str:
     value = get_setting(conn, "last_llm_profile", "template")
     try:

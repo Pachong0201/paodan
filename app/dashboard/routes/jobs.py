@@ -62,8 +62,8 @@ def start_job(request: Request, csrf_token: Optional[str] = Form(None),
             raise HTTPException(status_code=404, detail="import batch not found")
         if str(batch.get("status") or "") != "READY" or int(batch.get("accepted_files") or 0) <= 0:
             raise HTTPException(status_code=409, detail="import batch is not READY")
-        profile = get_profile(profile_id or get_selected_profile_id(conn))
-        status = profile_status(profile.id)
+        profile = get_profile(profile_id or get_selected_profile_id(conn), db_path=request.app.state.db_path)
+        status = profile_status(profile.id, db_path=request.app.state.db_path)
         if not status.get("available", False):
             raise HTTPException(status_code=400, detail=status.get("message") or "profile unavailable")
         runtime = JobRuntimeConfig(

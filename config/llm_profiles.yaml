@@ -1,5 +1,5 @@
 # Paodan V5.0 Workbench LLM Profiles
-# API Key 只来自 .env / 环境变量，禁止写入本文件。
+# API Key 只来自 .env / 环境变量或设置页保存的本机 SQLite；禁止写入本文件。
 profiles:
   "off":
     name: 关闭 AI
@@ -20,3 +20,9 @@ profiles:
     type: api
     model: local-model
     base_url: http://127.0.0.1:11434/v1
+
+  custom:
+    name: 自定义 API
+    type: api
+    model: gpt-4o-mini
+    base_url: https://api.openai.com/v1

@@ -1054,6 +1054,19 @@ FAILED      导入层安全失败
 模板模式     LLM_MODE=template，不调用网络
 Local LLM    127.0.0.1 / localhost / ::1，API Key optional
 External     通过现有 External LLM Privacy Gateway，必须配置 API Key
+自定义 API   设置页手动填写 Base URL / Model / API Key
+```
+
+自定义 API 说明：
+
+```text
+设置页 → 自定义 LLM API
+- Base URL：OpenAI-compatible API endpoint
+- Model：模型名称
+- API Key：只保存到本机 SQLite workbench_settings，不写入 YAML、日志或 Git
+- 保存后自动切换到「自定义 API」Profile
+- External API 仍必须通过 DestinationClassifier / SecurityPolicy allowlist
+- Local LLM（127.0.0.1 / localhost / ::1）允许不填 API Key
 ```
 
 API Key 只来自 `.env` / 环境变量；页面只显示“已配置/未配置”，不显示任何片段，也不允许页面修改。

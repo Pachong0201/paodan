@@ -108,7 +108,7 @@ def homepage(request: Request, page: int = Query(1, ge=1),
         ready_batches = repo.list_ready_import_batches(limit=1)
         active_job = repo.get_active_job()
         selected_profile = get_selected_profile_id(conn2)
-        selected_status = profile_status(selected_profile)
+        selected_status = profile_status(selected_profile, db_path=request.app.state.db_path)
     profiles = load_llm_profiles()
     context = _page_context(request, filters, page, page_size, filters.get("days", cfg.default_days),
                             total, items, page_title="首页")

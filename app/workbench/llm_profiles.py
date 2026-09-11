@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -9,7 +10,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-from ..config import LLM_BASE_URL, LLM_MODEL
+from ..config import DB_PATH, LLM_BASE_URL, LLM_MODEL
 from ..security.policy import SecurityPolicy, load_security_policy
 from ..security.classifier import Destination, DestinationClassifier
 
@@ -72,7 +73,38 @@ def _credentials_in_url(url: str) -> bool:
         return False
 
 
-def load_llm_profiles(config_path: Path | str | None = None) -> Dict[str, LLMProfile]:
+def _read_custom_llm_settings(db_path: str | Path | None) -> Dict[str, str]:
+    """读取设置页保存的自定义 LLM 配置；只读取，不泄露 key 到 UI。"""
+    path = Path(db_path) if db_path else Path(DB_PATH)
+    if not path.exists():
+        return {}
+    conn = None
+    try:
+        conn = sqlite3.connect(str(path), timeout=5)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """SELECT key, value FROM workbench_settings
+               WHERE key IN ('custom_llm_base_url','custom_llm_model','custom_llm_api_key')"""
+        ).fetchall()
+        out = {str(r["key"]): str(r["value"] or "") for r in rows}
+        return out
+    except sqlite3.Error:
+        return {}
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+
+
+def _read_custom_api_key(db_path: str | Path | None) -> str:
+    settings = _read_custom_llm_settings(db_path)
+    return str(settings.get("custom_llm_api_key") or "").strip()
+
+
+def load_llm_profiles(config_path: Path | str | None = None,
+                      db_path: str | Path | None = None) -> Dict[str, LLMProfile]:
     path = Path(config_path) if config_path else Path(__file__).resolve().parents[2] / "config" / "llm_profiles.yaml"
     if not path.exists():
         return {
@@ -101,6 +133,16 @@ def load_llm_profiles(config_path: Path | str | None = None) -> Dict[str, LLMPro
         if pid in profiles:
             raise LLMProfileError(f"duplicate profile id: {pid}")
         profiles[p.id] = p
+    # 设置页保存的自定义 API 覆盖 custom profile 的 model/base_url。
+    custom = profiles.get("custom")
+    if custom is not None:
+        saved = _read_custom_llm_settings(db_path)
+        if saved.get("custom_llm_base_url"):
+            custom.base_url = str(saved["custom_llm_base_url"]).strip()
+            custom.base_url_env = ""
+        if saved.get("custom_llm_model"):
+            custom.model = str(saved["custom_llm_model"]).strip()
+            custom.model_env = ""
     validate_profiles(profiles)
     return profiles
 
@@ -122,16 +164,18 @@ def validate_profiles(profiles: Dict[str, LLMProfile]) -> None:
                 raise LLMProfileError(f"{pid}: invalid base_url")
 
 
-def get_profile(profile_id: str, config_path: Path | str | None = None) -> LLMProfile:
-    profiles = load_llm_profiles(config_path)
+def get_profile(profile_id: str, config_path: Path | str | None = None,
+                db_path: str | Path | None = None) -> LLMProfile:
+    profiles = load_llm_profiles(config_path, db_path=db_path)
     if profile_id not in profiles:
         raise LLMProfileError(f"unknown profile: {profile_id}")
     return profiles[profile_id]
 
 
-def profile_status(profile_id: str, policy: Optional[SecurityPolicy] = None) -> Dict[str, Any]:
+def profile_status(profile_id: str, policy: Optional[SecurityPolicy] = None,
+                   db_path: str | Path | None = None) -> Dict[str, Any]:
     """返回 UI 安全状态；不返回 API Key 或 URL 凭据。"""
-    p = get_profile(profile_id)
+    p = get_profile(profile_id, db_path=db_path)
     policy = policy or load_security_policy()
     result = {"id": p.id, "name": p.name, "type": p.type, "available": True, "message": ""}
     if p.type != "api":
@@ -143,7 +187,10 @@ def profile_status(profile_id: str, policy: Optional[SecurityPolicy] = None) -> 
         result.update(available=False, message=f"该模型地址未获安全策略授权: {exc}")
         return result
     # 先按 DestinationClassifier 分类：LOCAL 允许无 API Key，EXTERNAL 仍需 Key。
-    if destination == Destination.EXTERNAL and not os.getenv("LLM_API_KEY", "").strip():
+    api_key = os.getenv("LLM_API_KEY", "").strip()
+    if not api_key and p.id == "custom":
+        api_key = _read_custom_api_key(db_path)
+    if destination == Destination.EXTERNAL and not api_key:
         result.update(available=False, message="模型未配置 API Key")
         return result
     return result

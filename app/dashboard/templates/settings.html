@@ -2,6 +2,14 @@
 {% block title %}设置 | Paodan{% endblock %}
 {% block content %}
 <h2>设置</h2>
+
+{% if saved %}
+<p class="save-msg">已保存，并已切换到「自定义 API」。</p>
+{% endif %}
+{% if error %}
+<div class="import-error">{{ error }}</div>
+{% endif %}
+
 <section class="card">
   <h3>AI 辅助</h3>
   <form method="post" action="/settings/profile" class="inline-form">
@@ -17,12 +25,52 @@
     <button type="submit">保存</button>
   </form>
 </section>
+
+<section class="card">
+  <h3>自定义 LLM API</h3>
+  <p class="hint">
+    可填写 OpenAI-compatible API。API Key 只保存在本机 SQLite，不会写入 YAML、日志或上传到 Git。
+    External API 仍会经过现有 Privacy Gateway / DestinationClassifier 安全检查。
+  </p>
+  <form method="post" action="/settings/llm">
+    <input type="hidden" name="csrf_token" value="{{ request.app.state.csrf_token }}">
+    <div class="two-col">
+      <label>API Base URL
+        <input type="text" name="base_url" value="{{ custom_base_url }}" placeholder="OpenAI-compatible API 或本机 Local API">
+      </label>
+      <label>Model
+        <input type="text" name="model" value="{{ custom_model }}" placeholder="gpt-4o-mini / local-model">
+      </label>
+      <label>API Key
+        <input type="password" name="api_key" value="" placeholder="{% if custom_api_key_configured %}已配置，留空保持不变{% else %}本地模型可留空{% endif %}" autocomplete="new-password">
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="clear_api_key" value="1">
+        清除已保存的 API Key
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit">保存并启用自定义 API</button>
+      <span class="hint">
+        当前状态：
+        {% if custom_status.available %}
+          <span class="badge track-governance">可用</span>
+        {% else %}
+          <span class="badge priority-s">不可用</span>
+          {{ custom_status.message }}
+        {% endif %}
+      </span>
+    </div>
+  </form>
+</section>
+
 <section class="card">
   <h3>安全与运行信息（只读）</h3>
   <dl>
     <dt>Privacy Level</dt><dd>{{ privacy_level }}</dd>
     <dt>Allowed Hosts</dt><dd>{{ allowed_hosts|join(', ') }}</dd>
-    <dt>API Key</dt><dd>{{ '已配置' if api_key_configured else '未配置' }}</dd>
+    <dt>环境变量 LLM_API_KEY</dt><dd>{{ '已配置' if api_key_configured else '未配置' }}</dd>
+    <dt>自定义 API Key</dt><dd>{{ '已配置（仅本机 SQLite）' if custom_api_key_configured and not api_key_configured else ('已配置' if custom_api_key_configured else '未配置') }}</dd>
     <dt>LLM Model</dt><dd>{{ llm_model }}</dd>
     <dt>API Host</dt><dd>{{ llm_base_url_host }}</dd>
     <dt>Dashboard Timezone</dt><dd>{{ dashboard_timezone }}</dd>

@@ -21,7 +21,8 @@ class PipelineFactoryError(RuntimeError):
     pass
 
 
-def build_llm_client(runtime_config: JobRuntimeConfig, policy=None) -> LLMClient:
+def build_llm_client(runtime_config: JobRuntimeConfig, policy=None,
+                     db: Optional[Database] = None) -> LLMClient:
     policy = policy or load_security_policy()
     base_url = runtime_config.llm_base_url or os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     model = runtime_config.llm_model or os.getenv("LLM_MODEL", "gpt-4o-mini")
@@ -31,6 +32,13 @@ def build_llm_client(runtime_config: JobRuntimeConfig, policy=None) -> LLMClient
     except Exception as exc:  # noqa: BLE001
         raise PipelineFactoryError(str(exc)) from exc
     api_key = os.getenv("LLM_API_KEY", "").strip()
+    # 设置页保存的 custom profile API Key 只从本机 SQLite 读取，不进入 runtime_config。
+    if not api_key and runtime_config.llm_profile_id == "custom" and db is not None:
+        try:
+            from .runtime_settings import get_custom_llm_settings
+            api_key = str(get_custom_llm_settings(db.conn).get("api_key") or "").strip()
+        except Exception:
+            api_key = ""
     if destination == Destination.EXTERNAL and not api_key:
         raise PipelineFactoryError("模型未配置 API Key")
     try:
@@ -59,7 +67,7 @@ class PipelineFactory:
 
         if runtime_config.llm_enabled and mode == "api":
             try:
-                client = build_llm_client(runtime_config, policy)
+                client = build_llm_client(runtime_config, policy, db=db)
                 screener.client = client
                 screener.mode = "api"
             except PipelineFactoryError:

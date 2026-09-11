@@ -517,6 +517,58 @@ textarea {
 .import-form button { padding: 10px 17px; }
 .import-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 11px 13px; border-radius: 10px; margin-top: 12px; }
 
+/* ---------- settings ---------- */
+.two-col label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 650;
+  color: #334155;
+}
+
+.two-col input {
+  width: 100%;
+  min-width: 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.checkbox-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  min-width: 0;
+  accent-color: var(--primary);
+}
+
+input[type="password"] {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+input[type="password"]:focus {
+  border-color: rgba(37, 99, 235, .75);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+}
+
 /* ---------- reader ---------- */
 .sensitive-banner { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-weight: 700; }
 .raw-body { white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0; border: 1px solid #1e293b; padding: 16px; border-radius: 12px; max-height: 70vh; overflow: auto; font-family: ui-monospace, Consolas, "SFMono-Regular", monospace; font-size: 13px; line-height: 1.65; }
