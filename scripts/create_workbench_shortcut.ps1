@@ -1,15 +1,17 @@
 $ErrorActionPreference = 'Stop'
 
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $IconSrc = Join-Path $Root 'assets\paodan_workbench.ico'
 
-# 支持从 \\wsl.localhost\Ubuntu\home\user\paodan 直接运行。
 $Distro = 'Ubuntu'
-$ProjectWsl = '/home/user/paodan'
+$ProjectWsl = ''
 if ($Root -match '^\\\\wsl(?:\.localhost)?\\([^\\]+)\\(.+)$') {
     $Distro = $Matches[1]
     $rel = $Matches[2] -replace '\\', '/'
     $ProjectWsl = '/' + $rel.TrimStart('/')
+}
+if (-not $ProjectWsl) {
+    $ProjectWsl = '/home/' + $env:USERNAME + '/paodan'
 }
 
 $IconDir = Join-Path $env:LOCALAPPDATA 'Paodan'

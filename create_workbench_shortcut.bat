@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 echo 正在创建 Paodan Workbench 桌面图标...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0create_workbench_shortcut.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\create_workbench_shortcut.ps1"
 if errorlevel 1 (
     echo.
     echo [ERROR] 创建失败。请右键本文件，选择“以管理员身份运行”，或把错误信息发给开发者。
