@@ -6,6 +6,20 @@
   <a href="/leads">← 返回高价值线索</a> |
   <a href="/emails/{{ reader.email_id }}">系统研判</a>
 </p>
+<nav class="reader-nav">
+  {% if reader.prev_email_id %}
+  <a href="/emails/{{ reader.prev_email_id }}/reader">← 上一封</a>
+  {% else %}
+  <span class="disabled">← 上一封</span>
+  {% endif %}
+  |
+  {% if reader.next_email_id %}
+  <a href="/emails/{{ reader.next_email_id }}/reader">下一封 →</a>
+  {% else %}
+  <span class="disabled">下一封 →</span>
+  {% endif %}
+  <span class="hint">（按优先级与评分排序）</span>
+</nav>
 <h2>{{ reader.subject }}</h2>
 <div class="reader-meta">
   <span class="badge priority-{{ reader.priority|lower }}">{{ reader.priority }}</span>
@@ -42,6 +56,14 @@
         <td>{{ a.extraction_status }}</td>
         <td>{% if a.text_len %}<a href="/emails/{{ reader.email_id }}/reader/attachments/{{ a.id }}">查看提取内容</a>{% else %}无提取文本{% endif %}</td>
       </tr>
+      {% if a.image_available %}
+      <tr class="attachment-image-row">
+        <td colspan="4">
+          <img src="/emails/{{ reader.email_id }}/reader/attachments/{{ a.id }}/raw"
+               alt="{{ a.filename }}" loading="lazy">
+        </td>
+      </tr>
+      {% endif %}
     {% endfor %}
     </tbody>
   </table>
