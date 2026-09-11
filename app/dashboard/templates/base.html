@@ -9,17 +9,21 @@
 <body>
 <header class="topbar">
   <div class="topbar-inner">
-    <div>
-      <h1>Paodan 新闻线索 Dashboard</h1>
-      <div class="subtitle">本地新闻线索筛选与人工复核工作台</div>
+    <div class="brand">
+      <div class="brand-mark">PD</div>
+      <div>
+        <h1>Paodan 新闻线索 Dashboard</h1>
+        <div class="subtitle">本地新闻线索筛选与人工复核工作台</div>
+      </div>
     </div>
+    {% set _path = request.url.path %}
     <nav>
-      <a href="/">工作台</a>
-      <a href="/import">导入邮件</a>
-      <a href="/jobs">任务中心</a>
-      <a href="/leads">高价值线索</a>
-      <a href="/review">人工审核</a>
-      <a href="/settings">设置</a>
+      <a href="/" class="{% if _path == '/' %}active{% endif %}">工作台</a>
+      <a href="/import" class="{% if _path.startswith('/import') %}active{% endif %}">导入邮件</a>
+      <a href="/jobs" class="{% if _path.startswith('/jobs') %}active{% endif %}">任务中心</a>
+      <a href="/leads" class="{% if _path.startswith('/leads') %}active{% endif %}">高价值线索</a>
+      <a href="/review" class="{% if _path.startswith('/review') %}active{% endif %}">人工审核</a>
+      <a href="/settings" class="{% if _path.startswith('/settings') %}active{% endif %}">设置</a>
     </nav>
   </div>
 </header>

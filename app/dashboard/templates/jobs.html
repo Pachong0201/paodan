@@ -9,7 +9,7 @@
 <tr>
   <td><a href="/jobs/{{ j.job_id }}">{{ j.job_id }}</a></td>
   <td>{{ j.import_id }}</td>
-  <td>{{ j.status }}</td>
+  <td><span class="badge job-status-{{ j.status|lower }}">{{ j.status }}</span></td>
   <td>{{ j.processed_count }} / {{ j.total_count }}</td>
   <td>S{{ j.s_count }} A{{ j.a_count }} B{{ j.b_count }}</td>
   <td>{{ j.llm_profile_id }}</td>

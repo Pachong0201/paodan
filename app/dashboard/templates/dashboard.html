@@ -3,11 +3,17 @@
 {% block content %}
 <section class="workbench-hero">
   <div class="workbench-status">
+    <h2>工作台总览</h2>
     <div class="status-line"><span class="dot ok"></span> 系统：就绪</div>
-    <div class="status-line">AI：{{ workbench.selected_profile_name }}
-      {% if not workbench.selected_profile_status.available %}<span class="warn">（不可用：{{ workbench.selected_profile_status.message }}）</span>{% endif %}
+    <div class="status-line">AI：<strong>{{ workbench.selected_profile_name }}</strong>
+      {% if workbench.selected_profile_status.available %}
+        <span class="badge track-governance">可用</span>
+      {% else %}
+        <span class="badge priority-s">不可用</span>
+        <span class="warn">{{ workbench.selected_profile_status.message }}</span>
+      {% endif %}
     </div>
-    <div class="status-line">待处理：{{ workbench.ready_import.accepted_files if workbench.ready_import else 0 }} 封</div>
+    <div class="status-line">待处理：<strong>{{ workbench.ready_import.accepted_files if workbench.ready_import else 0 }}</strong> 封</div>
   </div>
   <div class="workbench-actions">
     <a class="btn-primary" href="/import">＋ 导入邮件</a>

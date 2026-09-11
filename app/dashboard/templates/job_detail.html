@@ -5,7 +5,7 @@
 <section class="card">
 <dl>
   <dt>Import</dt><dd>{{ job.import_id }}</dd>
-  <dt>Status</dt><dd>{{ job.status }}</dd>
+  <dt>Status</dt><dd><span class="badge job-status-{{ job.status|lower }}">{{ job.status }}</span></dd>
   <dt>Profile</dt><dd>{{ job.llm_profile_id }} / {{ job.llm_mode }} / {{ job.llm_model }}</dd>
   <dt>进度</dt><dd>{{ job.processed_count }} / {{ job.total_count }}</dd>
   <dt>成功/失败/重复</dt><dd>{{ job.success_count }} / {{ job.failed_count }} / {{ job.duplicate_count }}</dd>
