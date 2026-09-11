@@ -14,8 +14,9 @@ import logging
 import sys
 from pathlib import Path
 
-from .config import (DATA_DIR, DB_PATH, LLM_MODE, LOG_DIR, LOG_FILE, MIN_PRIORITY,
-                     NEWS_SIGNAL_DIR, REPORTS_DIR, priority_min_value, resolve_llm_trigger_score)
+from .config import (DATA_DIR, DB_PATH, LLM_BASE_URL, LLM_MODE, LLM_MODEL, LOG_DIR,
+                     LOG_FILE, MIN_PRIORITY, NEWS_SIGNAL_DIR, REPORTS_DIR,
+                     priority_min_value, resolve_llm_trigger_score)
 from .pipeline.screening_pipeline import ScreeningPipeline
 from .rules.config_loader import RuleConfig
 from .scoring.scorer import priority_of
@@ -330,28 +331,13 @@ def run(args) -> int:
 
     db = Database(DB_PATH)
 
-    llm_mode = args.llm_mode or LLM_MODE
-    from .llm.screener import LLMScreener
-
-    screener = LLMScreener(cfg, mode=llm_mode)
-    # 首发渠道推荐模块（V2：仅 S/A/B 且 final_score >= 配置阈值）
-    advisor = None
-    if args.enable_release_advisor:
-        from .release_advisor.llm_advisor import ReleaseAdvisor
-        advisor = ReleaseAdvisor(cfg, mode=llm_mode, allow_llm=not args.no_llm)
-    # 具名渠道推荐模块（V3：依赖 V2 输出）
-    named_advisor = None
-    if args.enable_named_advisor:
-        from .named_channel.advisor import NamedChannelAdvisor
-        named_advisor = NamedChannelAdvisor(mode=llm_mode, allow_llm=not args.no_llm)
-    pipeline = ScreeningPipeline(cfg, db=db, llm_screener=screener,
-                                 llm_trigger_score=getattr(args, "llm_trigger_score", None),
-                                 allow_llm=not args.no_llm,
-                                 release_advisor=advisor,
-                                 named_advisor=named_advisor,
-                                 reprocess=getattr(args, "reprocess", False),
-                                 rescore=getattr(args, "rescore", False),
-                                 reanalyze=getattr(args, "reanalyze", False))
+    from .runtime.pipeline_factory import PipelineFactoryError, build_cli_pipeline
+    try:
+        pipeline = build_cli_pipeline(cfg, db, args)
+    except PipelineFactoryError as exc:
+        logger.error("Pipeline 初始化失败: %s", exc)
+        db.close()
+        return 2
 
     records = []
     if args.file:

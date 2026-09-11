@@ -38,7 +38,9 @@ class PipelineFactory:
 
     @staticmethod
     def create(config: RuleConfig, runtime_config: JobRuntimeConfig,
-               db: Optional[Database] = None) -> ScreeningPipeline:
+               db: Optional[Database] = None,
+               llm_trigger_score: Optional[float] = None,
+               fallback_on_llm_error: bool = False) -> ScreeningPipeline:
         policy = load_security_policy()
         mode = runtime_config.llm_mode if runtime_config.llm_enabled else "template"
         if mode not in ("template", "api"):
@@ -49,9 +51,16 @@ class PipelineFactory:
         named_advisor = None
 
         if runtime_config.llm_enabled and mode == "api":
-            client = build_llm_client(runtime_config, policy)
-            screener.client = client
-            screener.mode = "api"
+            try:
+                client = build_llm_client(runtime_config, policy)
+                screener.client = client
+                screener.mode = "api"
+            except PipelineFactoryError:
+                if not fallback_on_llm_error:
+                    raise
+                mode = "template"
+                screener.client = None
+                screener.mode = "template"
         else:
             screener.client = None
             screener.mode = "template"
@@ -77,6 +86,7 @@ class PipelineFactory:
         allow_llm = bool(runtime_config.llm_enabled)
         return ScreeningPipeline(
             config, db=db, llm_screener=screener,
+            llm_trigger_score=llm_trigger_score,
             allow_llm=allow_llm,
             release_advisor=release_advisor,
             named_advisor=named_advisor,
