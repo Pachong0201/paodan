@@ -955,14 +955,8 @@ http://127.0.0.1:8765
 ```text
 .eml
 多选 .eml
-多选 .zip（每个 ZIP 内的 .eml 全部导入）
-.zip + .eml 混合上传
 .zip（递归查找任意层级子目录中的 .eml）
 ```
-
-一次上传（无论包含多少个 ZIP / EML）始终合并为**同一个** import batch：
-去重集合、`max_files_per_batch` 文件数预算、总解压体积都在批次级别共享。
-任一批次内的 ZIP 触发 Zip Slip 等安全错误时，整批中止并报错，不会部分静默导入。
 
 上传后先进入：
 
@@ -1014,23 +1008,10 @@ Reader 特点：
 
 - 用户主动点击后允许显示原始正文与附件提取文本
 - 来源信息默认隐藏，点击「显示来源信息」后按需请求
-- 上一封 / 下一封导航，按「优先级 → 评分 → 处理时间」排序（与 `/leads` 默认排序一致）
-- 本地图片附件内联展示（读取本地 `.attachments_cache`，不发起任何网络请求）
 - 不加载远程图片、远程 CSS、iframe
 - 不调用外部网络
 - 正文按纯文本展示，Jinja autoescape
 - `Cache-Control: no-store`
-
-图片附件内联的安全边界：
-
-```text
-类型只按 magic bytes 判定，白名单仅含位图（PNG / JPEG / GIF / WebP / BMP / TIFF）
-SVG 永远不内联（可内嵌脚本，同源返回等于 XSS）
-伪装成 .png 的 HTML 因 magic bytes 不匹配而 404
-image_available 与实际字节校验共用同一判定，不会渲染必定 404 的 <img>
-模板与 JSON 只暴露布尔值，不泄漏本地文件系统路径
-单张图片内联上限 50 MB
-```
 
 普通 Dashboard 仍然不显示 raw body；`/emails/{id}` 继续是脱敏分析详情。
 

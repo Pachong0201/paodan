@@ -109,21 +109,6 @@ class ImportBatchResult:
         return self.to_dict()[key]
 
 
-@dataclass
-class _BatchState:
-    """单次导入批次的共享累积状态。
-
-    一次上传（可能包含多个 ZIP + 多个 EML）必须合并为**同一个** import batch，
-    因此去重集合、文件数预算与总解压体积都必须在批次级别共享，
-    而不是每个 ZIP 各自一份。
-    """
-    import_id: str = ""
-    import_dir: Optional[Path] = None
-    result: ImportBatchResult = field(default_factory=ImportBatchResult)
-    seen_sha: Set[str] = field(default_factory=set)
-    total_uncompressed: int = 0
-
-
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -283,49 +268,25 @@ class ImportService:
         return sha, str(target)
 
     # ------------------------------------------------------------------
-    def _new_state(self, import_id: Optional[str] = None) -> _BatchState:
+    def import_zip(self, zip_path: str | Path,
+                   import_id: Optional[str] = None) -> ImportBatchResult:
+        zip_path = Path(zip_path)
+        if not zip_path.exists() or not zipfile.is_zipfile(zip_path):
+            raise ImportSecurityError("INVALID_ZIP")
         iid, import_dir = self._new_import_dir(import_id)
-        return _BatchState(
-            import_id=iid,
-            import_dir=import_dir,
-            result=ImportBatchResult(import_id=iid, staging_dir=str(import_dir)),
-        )
+        result = ImportBatchResult(import_id=iid, staging_dir=str(import_dir))
+        seen_sha: Set[str] = set()
+        total_uncompressed = 0
 
-    def _accept_candidate(self, state: _BatchState, *, rel_path: str, depth: int,
-                          data: bytes, size: int, original_name: str) -> None:
-        """去重 → 合法性校验 → staging 的共享尾部逻辑（批次级去重）。"""
-        result = state.result
-        item = ImportItem(archive_relative_path=rel_path, depth=depth,
-                          size=size, status="accepted")
-        sha = _sha256_bytes(data)
-        item.raw_sha256 = sha
-        if sha in state.seen_sha:
-            item.status = "duplicate"
-            item.reason = "DUPLICATE_RAW_EML_SHA256"
-            result.duplicates += 1
-            result.items.append(item)
-            return
-        state.seen_sha.add(sha)
-        if not _is_valid_eml_bytes(data):
-            item.status = "invalid"
-            item.reason = "INVALID_EML"
-            result.invalid += 1
-            result.items.append(item)
-            return
-        _, staged = self._stage_bytes(state.import_dir, data, original_name)
-        item.staged_path = staged
-        result.accepted += 1
-        result.items.append(item)
-
-    def _process_zip_into(self, state: _BatchState, zip_path: str | Path) -> None:
-        """把一个 ZIP 的全部 .eml 条目并入批次状态（安全校验与 import_zip 一致）。"""
-        result = state.result
         with zipfile.ZipFile(zip_path) as zf:
             for info in zf.infolist():
                 name = info.filename
                 if not name:
                     continue
-                normalized = _validate_member_path(name)
+                try:
+                    normalized = _validate_member_path(name)
+                except ImportSecurityError:
+                    raise
                 if info.is_dir() or normalized.endswith("/"):
                     continue
                 if _is_ignored_entry(normalized):
@@ -335,92 +296,72 @@ class ImportService:
                     continue
                 result.discovered += 1
                 if result.discovered > self.max_files_per_batch:
+                    item = ImportItem(archive_relative_path=normalized, depth=depth,
+                                      size=int(info.file_size or 0), status="rejected",
+                                      reason="MAX_FILES_EXCEEDED")
                     result.rejected += 1
-                    result.items.append(ImportItem(
-                        archive_relative_path=normalized, depth=depth,
-                        size=int(info.file_size or 0), status="rejected",
-                        reason="MAX_FILES_EXCEEDED"))
+                    result.items.append(item)
                     continue
+                item = ImportItem(archive_relative_path=normalized, depth=depth,
+                                  size=int(info.file_size or 0), status="accepted")
                 if depth > self.max_nesting_depth:
+                    item.status = "rejected"
+                    item.reason = "NESTING_DEPTH_EXCEEDED"
                     result.rejected += 1
-                    result.items.append(ImportItem(
-                        archive_relative_path=normalized, depth=depth,
-                        size=int(info.file_size or 0), status="rejected",
-                        reason="NESTING_DEPTH_EXCEEDED"))
+                    result.items.append(item)
                     continue
                 if info.file_size > self.max_file_size:
+                    item.status = "invalid"
+                    item.reason = "FILE_TOO_LARGE"
                     result.invalid += 1
-                    result.items.append(ImportItem(
-                        archive_relative_path=normalized, depth=depth,
-                        size=int(info.file_size or 0), status="invalid",
-                        reason="FILE_TOO_LARGE"))
+                    result.items.append(item)
                     continue
-                state.total_uncompressed += int(info.file_size or 0)
-                if state.total_uncompressed > self.max_total_size:
+                total_uncompressed += int(info.file_size or 0)
+                if total_uncompressed > self.max_total_size:
+                    item.status = "rejected"
+                    item.reason = "TOTAL_SIZE_EXCEEDED"
                     result.rejected += 1
-                    result.items.append(ImportItem(
-                        archive_relative_path=normalized, depth=depth,
-                        size=int(info.file_size or 0), status="rejected",
-                        reason="TOTAL_SIZE_EXCEEDED"))
+                    result.items.append(item)
                     continue
                 compressed = max(1, int(info.compress_size or 0))
                 ratio = float(info.file_size or 0) / compressed
                 if ratio > self.max_compression_ratio:
+                    item.status = "rejected"
+                    item.reason = "COMPRESSION_RATIO_EXCEEDED"
                     result.rejected += 1
-                    result.items.append(ImportItem(
-                        archive_relative_path=normalized, depth=depth,
-                        size=int(info.file_size or 0), status="rejected",
-                        reason="COMPRESSION_RATIO_EXCEEDED"))
+                    result.items.append(item)
                     continue
                 try:
                     data = zf.read(info)
                 except Exception as exc:  # noqa: BLE001
+                    item.status = "invalid"
+                    item.reason = f"ZIP_READ_ERROR: {exc}"
                     result.invalid += 1
-                    result.items.append(ImportItem(
-                        archive_relative_path=normalized, depth=depth,
-                        size=int(info.file_size or 0), status="invalid",
-                        reason=f"ZIP_READ_ERROR: {exc}"))
+                    result.items.append(item)
                     continue
-                self._accept_candidate(state, rel_path=normalized, depth=depth,
-                                       data=data, size=int(info.file_size or 0),
-                                       original_name=normalized)
+                sha = _sha256_bytes(data)
+                item.raw_sha256 = sha
+                if sha in seen_sha:
+                    item.status = "duplicate"
+                    item.reason = "DUPLICATE_RAW_EML_SHA256"
+                    result.duplicates += 1
+                    result.items.append(item)
+                    continue
+                seen_sha.add(sha)
+                if not _is_valid_eml_bytes(data):
+                    item.status = "invalid"
+                    item.reason = "INVALID_EML"
+                    result.invalid += 1
+                    result.items.append(item)
+                    continue
+                _, staged = self._stage_bytes(import_dir, data, normalized)
+                item.status = "accepted"
+                item.staged_path = staged
+                result.accepted += 1
+                result.items.append(item)
 
-    def _process_eml_into(self, state: _BatchState, filename: str, data: bytes) -> None:
-        """把一上传的 .eml 字节并入批次状态（安全校验与 import_eml_uploads 一致）。"""
-        result = state.result
-        safe_name = _safe_basename(filename)
-        if result.discovered >= self.max_files_per_batch:
-            # 注意：此处刻意不写 size，以保持与既有 import_eml_uploads 完全一致的
-            # 行为（超预算的 EML 上传项 size 记为 0，不计入 batch total_bytes）。
-            result.rejected += 1
-            result.items.append(ImportItem(
-                archive_relative_path=safe_name,
-                status="rejected", reason="MAX_FILES_EXCEEDED"))
-            return
-        result.discovered += 1
-        if len(data) > self.max_file_size:
-            result.invalid += 1
-            result.items.append(ImportItem(
-                archive_relative_path=safe_name, size=len(data),
-                status="invalid", reason="FILE_TOO_LARGE"))
-            return
-        self._accept_candidate(state, rel_path=safe_name, depth=0,
-                               data=data, size=len(data),
-                               original_name=filename)
-
-    def _finalize(self, state: _BatchState) -> ImportBatchResult:
-        self._write_manifest(state.result)
-        return state.result
-
-    # ------------------------------------------------------------------
-    def import_zip(self, zip_path: str | Path,
-                   import_id: Optional[str] = None) -> ImportBatchResult:
-        zip_path = Path(zip_path)
-        if not zip_path.exists() or not zipfile.is_zipfile(zip_path):
-            raise ImportSecurityError("INVALID_ZIP")
-        state = self._new_state(import_id)
-        self._process_zip_into(state, zip_path)
-        return self._finalize(state)
+        self._write_manifest(result)
+        return result
 
     # ------------------------------------------------------------------
     def import_directory(self, root_dir: str | Path,
@@ -492,33 +433,46 @@ class ImportService:
 
     def import_eml_uploads(self, items: Iterable[tuple[str, bytes]],
                            import_id: Optional[str] = None) -> ImportBatchResult:
-        state = self._new_state(import_id)
+        iid, import_dir = self._new_import_dir(import_id)
+        result = ImportBatchResult(import_id=iid, staging_dir=str(import_dir))
+        seen_sha: Set[str] = set()
         for filename, data in items:
-            self._process_eml_into(state, filename, data)
-        return self._finalize(state)
-
-    def import_uploads(self, eml_items: Optional[Iterable[tuple[str, bytes]]] = None,
-                       zip_paths: Optional[Iterable[str | Path]] = None,
-                       import_id: Optional[str] = None) -> ImportBatchResult:
-        """多文件混合上传：N 个 ZIP + M 个 EML → **单一** import batch。
-
-        这是 Import Center 的唯一正确入口。此前路由对混合/多 ZIP 上传只处理
-        第一个 ZIP，其余上传被静默丢弃（无错误提示、无批次记录），属于数据丢失。
-        这里保证：
-        - 所有 ZIP 的条目全部并入同一批次；
-        - 去重、文件数预算、总解压体积在批次级别共享；
-        - 任一 ZIP 触发 Zip Slip 等安全错误时整批中止并向上抛出。
-        """
-        zips = [Path(p) for p in (zip_paths or [])]
-        for zp in zips:
-            if not zp.exists() or not zipfile.is_zipfile(zp):
-                raise ImportSecurityError("INVALID_ZIP")
-        state = self._new_state(import_id)
-        for filename, data in (eml_items or []):
-            self._process_eml_into(state, filename, data)
-        for zp in zips:
-            self._process_zip_into(state, zp)
-        return self._finalize(state)
+            if result.discovered >= self.max_files_per_batch:
+                item = ImportItem(archive_relative_path=_safe_basename(filename), status="rejected",
+                                  reason="MAX_FILES_EXCEEDED")
+                result.rejected += 1
+                result.items.append(item)
+                continue
+            result.discovered += 1
+            item = ImportItem(archive_relative_path=_safe_basename(filename),
+                              size=len(data), status="accepted")
+            if len(data) > self.max_file_size:
+                item.status = "invalid"
+                item.reason = "FILE_TOO_LARGE"
+                result.invalid += 1
+                result.items.append(item)
+                continue
+            sha = _sha256_bytes(data)
+            item.raw_sha256 = sha
+            if sha in seen_sha:
+                item.status = "duplicate"
+                item.reason = "DUPLICATE_RAW_EML_SHA256"
+                result.duplicates += 1
+                result.items.append(item)
+                continue
+            seen_sha.add(sha)
+            if not _is_valid_eml_bytes(data):
+                item.status = "invalid"
+                item.reason = "INVALID_EML"
+                result.invalid += 1
+                result.items.append(item)
+                continue
+            _, staged = self._stage_bytes(import_dir, data, filename)
+            item.staged_path = staged
+            result.accepted += 1
+            result.items.append(item)
+        self._write_manifest(result)
+        return result
 
     def import_path(self, path: str | Path,
                     import_id: Optional[str] = None) -> ImportBatchResult:

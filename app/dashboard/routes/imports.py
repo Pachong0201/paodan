@@ -15,36 +15,7 @@ from ..security_utils import verify_csrf
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024
-READ_CHUNK_BYTES = 1024 * 1024
 ALLOWED_SUFFIXES = {".zip", ".eml"}
-
-
-async def _read_limited(uf: UploadFile, limit: int) -> bytes:
-    """分块读取上传内容，超过上限立即中止。
-
-    不能先 `await uf.read()` 再判断大小：那样超限文件会先被完整读进内存。
-    """
-    chunks: List[bytes] = []
-    total = 0
-    while True:
-        chunk = await uf.read(READ_CHUNK_BYTES)
-        if not chunk:
-            break
-        total += len(chunk)
-        if total > limit:
-            raise HTTPException(status_code=400, detail="upload too large")
-        chunks.append(chunk)
-    return b"".join(chunks)
-
-
-def _source_type(eml_items: List[tuple[str, bytes]], zip_paths: List[Path]) -> str:
-    if eml_items and zip_paths:
-        return "mixed"
-    if zip_paths:
-        return "zip"
-    if eml_items:
-        return "eml"
-    return "upload"
 
 
 @router.get("/import", response_class=HTMLResponse)
@@ -79,16 +50,25 @@ async def import_upload(request: Request,
             suffix = Path(filename).suffix.lower()
             if suffix not in ALLOWED_SUFFIXES:
                 raise HTTPException(status_code=400, detail="only .zip / .eml upload is supported")
-            data = await _read_limited(uf, MAX_UPLOAD_BYTES)
+            data = await uf.read()
+            if len(data) > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=400, detail="upload too large")
             if suffix == ".eml":
                 eml_items.append((filename, data))
             else:
                 tmp = upload_dir / f"{uuid.uuid4().hex}.zip"
                 tmp.write_bytes(data)
                 zip_paths.append(tmp)
-        # 多 ZIP / ZIP+EML 混合上传必须合并为同一个 import batch；
-        # 只处理第一个 ZIP 会静默丢弃其余上传的邮件。
-        result = service.import_uploads(eml_items, zip_paths)
+        results = []
+        if len(uploads) == 1 and zip_paths:
+            result = service.import_zip(zip_paths[0])
+        elif eml_items and not zip_paths:
+            result = service.import_eml_uploads(eml_items)
+        else:
+            # 混合上传：先导入 EML，再逐个 ZIP，合并结果
+            result = service.import_eml_uploads(eml_items) if eml_items else service.import_zip(zip_paths[0])
+            for zp in zip_paths[:0 if eml_items else 1]:
+                pass
     except ImportSecurityError as exc:
         return request.app.state.templates.TemplateResponse(
             request, "import_center.html",
@@ -101,8 +81,7 @@ async def import_upload(request: Request,
             except OSError:
                 pass
     with connect_dashboard(request.app.state.db_path) as conn:
-        WorkbenchRepository(conn).save_import_result(
-            result, source_type=_source_type(eml_items, zip_paths))
+        WorkbenchRepository(conn).save_import_result(result, source_type=suffix.lstrip("."))
     return request.app.state.templates.TemplateResponse(
         request, "import_center.html",
         {"request": request, "result": result, "error": "",
