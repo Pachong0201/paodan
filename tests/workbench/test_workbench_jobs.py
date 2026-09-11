@@ -164,13 +164,19 @@ def test_cancel_is_checked_per_file(tmp_path, monkeypatch):
     assert start.status_code == 200
     job_id = start.json()["job_id"]
 
-    # 等到任务真正开跑再请求取消
-    deadline = time.time() + 10
+    # 等到任务真正开跑、且已经处理完至少一封，再请求取消。
+    # 不使用固定 sleep：CI 机器负载不同，固定等待会让断言随负载变成 flaky。
+    deadline = time.time() + 20
+    started = False
     while time.time() < deadline:
-        if client.get(f"/jobs/{job_id}/status").json()["status"] == "RUNNING":
+        snap = client.get(f"/jobs/{job_id}/status").json()
+        if snap["status"] == "RUNNING" and snap["processed_count"] >= 1:
+            started = True
             break
-        time.sleep(0.05)
-    time.sleep(0.4)
+        if snap["status"] in ("COMPLETED", "FAILED", "CANCELLED", "INTERRUPTED"):
+            break
+        time.sleep(0.02)
+    assert started, "任务未能进入 RUNNING 并处理至少一封邮件"
     cancel = client.post(f"/jobs/{job_id}/cancel",
                          data={"csrf_token": app.state.csrf_token})
     assert cancel.status_code == 200
