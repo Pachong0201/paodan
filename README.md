@@ -176,6 +176,24 @@ python -m app.main --selfcheck
 输出：`data/reports/screening_results.jsonl`、`data/reports/priority_queue.csv`；
 日志：`logs/app.log`；SQLite：`data/news_screening.db`。
 
+### Markdown 内部稿筛选（独立入口）
+
+用于无附件的 `.md` / `.markdown` 稿件（如未发布的内部新闻稿），与邮件流程完全分开：
+
+```bash
+python -m app.md_main --input 稿件目录/                 # 默认目录 data/markdown_inbox/
+python -m app.md_main --input 稿件目录/ --recursive     # 递归子目录
+python -m app.md_main --file 稿件.md --no-llm
+python -m app.md_main --input 稿件目录/ --split-sections # 按 ## 切段分别打分（多线索汇编稿）
+python -m app.md_main --input 稿件目录/ --min-priority B --reprocess
+```
+
+- 解析：剥离 YAML front-matter（`title`/`date` 作标题/日期，其余元数据不参与规则匹配），去除 Markdown 标记，保留标题/列表/表格/代码块文字；编码依次尝试 UTF-8(BOM)/GB18030/Big5；单文件上限 5MB。
+- 身份：`MD:<文件SHA256>`（分段为 `MD:<文件SHA256>#S<n>`），同内容重复导入自动跳过。
+- 评分沿用同一套规则与 7 维评分。内部稿模式（`source_kind=internal_draft`）下，不因正文含「报道/记者/去年/先前」判为旧闻转发，只有明确写出「无新增/没有新证据/旧闻转发」才判定无新证据；正文中提及的证据（流水、公文、截图等）照常计分，治理轨将其视同证据材料。
+- External LLM 隐私边界不变：只发送 SafeLLMPayload，稿件原文不出本机。
+- 输出：`data/reports/markdown/md_screening_results.jsonl`、`md_priority_queue.csv`；SQLite：`data/markdown/md_screening.db`（`--db` / `MD_SCREENING_DB` 可覆盖）。不写 Excel 台账、Review Queue，也不进入 Workbench。
+
 ## 目录
 
 ```

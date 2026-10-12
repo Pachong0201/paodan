@@ -19,7 +19,8 @@ from ..governance.verification import verification_targets_for
 from ..llm.screener import LLMScreener
 from ..models import (AttachmentDoc, EmailDocument, FinalScore, LLMResult,
                       RuleResult, ScreeningRecord)
-from ..parsers import parse_attachment, parse_eml
+from ..parsers import parse_attachment, parse_eml, parse_markdown_documents
+from ..parsers.markdown_parser import MARKDOWN_SUFFIXES, SOURCE_KIND_INTERNAL_DRAFT
 from ..parsers.attachment_parser import (PARSER_VERSION, ocr_cache_version, sha256_file)
 from ..preprocessing.normalization import Normalizer
 from ..rules.config_loader import RuleConfig
@@ -262,6 +263,34 @@ class ScreeningPipeline:
             return ScreeningRecord(email_id=str(eml_path), error=f"EML解析失败: {e}")
         return self._process_or_skip(doc, reprocess=reprocess or self.reprocess)
 
+    def process_markdown_file(self, md_path: str | Path, reprocess: bool = False,
+                              split_sections: bool = False) -> List[ScreeningRecord]:
+        """独立 Markdown 内部稿入口；不经过 EML 解析，原 process_file 行为不变。"""
+        md_path = Path(md_path)
+        try:
+            docs = parse_markdown_documents(md_path, split_sections=split_sections)
+        except Exception as e:  # noqa: BLE001
+            logger.error("Markdown 解析失败 %s: %s", md_path, e)
+            return [ScreeningRecord(email_id=str(md_path), error=f"Markdown解析失败: {e}")]
+        records = []
+        for doc in docs:
+            rec = self._process_or_skip(doc, reprocess=reprocess or self.reprocess)
+            if rec is not None:
+                records.append(rec)
+        return records
+
+    def process_markdown_directory(self, inbox: str | Path, reprocess: bool = False,
+                                   recursive: bool = False,
+                                   split_sections: bool = False) -> List[ScreeningRecord]:
+        inbox = Path(inbox)
+        walker = inbox.rglob("*") if recursive else inbox.glob("*")
+        paths = sorted(p for p in walker if p.is_file() and p.suffix.lower() in MARKDOWN_SUFFIXES)
+        records: List[ScreeningRecord] = []
+        for p in paths:
+            records.extend(self.process_markdown_file(p, reprocess=reprocess,
+                                                      split_sections=split_sections))
+        return records
+
     def process_document(self, doc: EmailDocument, reprocess: bool = False) -> Optional[ScreeningRecord]:
         return self._process_or_skip(doc, reprocess=reprocess or self.reprocess)
 
@@ -362,11 +391,14 @@ class ScreeningPipeline:
         doc.original_text = combined
         doc.normalized_text = Normalizer.normalize(combined)
 
+        is_draft = doc.source_kind == SOURCE_KIND_INTERNAL_DRAFT
         rr = self.rule_engine.evaluate(combined)
+        rr.internal_draft = is_draft
         self._apply_transactional_cap(doc, rr)
         no_new = self._judge_no_new_evidence(doc, rr)
         if no_new != rr.no_new_evidence:
             rr = self.rule_engine.evaluate(combined, no_new_evidence=no_new)
+            rr.internal_draft = is_draft
             self._apply_transactional_cap(doc, rr)
 
         known = self.known_matcher.match(
@@ -376,7 +408,10 @@ class ScreeningPipeline:
         gov = None
         if self.gov_engine is not None:
             try:
-                gov = self.gov_engine.evaluate(combined, has_attachment=bool(doc.attachments))
+                # 内部稿无附件，但正文写明的证据（流水/公文/截图等）视同证据材料
+                has_evidence_material = bool(doc.attachments) or (
+                    is_draft and bool(rr.matched_keywords.get("E")))
+                gov = self.gov_engine.evaluate(combined, has_attachment=has_evidence_material)
             except Exception as exc:
                 logger.error("Governance evaluate failed: %s", exc)
                 raise
@@ -609,6 +644,10 @@ class ScreeningPipeline:
         has_new = has_new or bool(rr.matched_keywords.get("E"))
         if rr.no_new_evidence:
             return True
+        if doc.source_kind == SOURCE_KIND_INTERNAL_DRAFT:
+            # 未发布内部稿：仅在稿件明确写出「无新增/没有新证据」时判定
+            explicit = ("无新增", "没有新证据", "无新证据", "旧闻转发", "旧闻转贴")
+            return any(s in text for s in explicit)
         if has_old and has_news and not has_new:
             return True
         return False

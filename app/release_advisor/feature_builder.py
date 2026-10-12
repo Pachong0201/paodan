@@ -469,7 +469,8 @@ class ReleaseFeatureBuilder:
         # 文本：转发/旧闻 + 无新金额无新证据
         text_old = _has_any(blob, ["去年报道", "去年報導", "旧闻", "舊聞", "旧案", "舊案",
                                    "转发", "轉發", "转贴", "轉貼", "转载", "轉載"]) and \
-            not (rule is not None and (rule.money or rule.matched_keywords.get("E")))
+            not (rule is not None and (rule.money or rule.matched_keywords.get("E") or
+                                       getattr(rule, "internal_draft", False)))
         is_old = bool(old_hint or ex_hint or text_old)
         if not is_old:
             return False, True
