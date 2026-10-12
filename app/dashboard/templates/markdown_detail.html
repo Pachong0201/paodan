@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ row.subject }} | Markdown 稿件{% endblock %}
+{% block content %}
+<p><a class="btn-link" href="/markdown">← 返回 Markdown 稿件列表</a></p>
+<h2><span class="badge priority-{{ row.priority|lower }}">{{ row.priority }}</span> {{ row.subject }}</h2>
+<section class="card">
+  <dl>
+    <dt>总分</dt><dd>{{ '%.0f'|format(row.final_score) }}（规则分 {{ '%.0f'|format(detail.rule_score or 0) }}；阶段调整 {{ detail.stage_adjustment }}；负面调整 {{ detail.negative_adjustment }}）</dd>
+    <dt>文件</dt><dd>{{ row.file_name }}</dd>
+    {% if detail.date %}<dt>稿件日期</dt><dd>{{ detail.date }}</dd>{% endif %}
+    <dt>类别</dt><dd>{{ row.categories or '-' }}</dd>
+    <dt>Pattern</dt><dd>{{ row.patterns or '-' }}</dd>
+    <dt>证据阶段</dt><dd>{{ detail.evidence_stage }}</dd>
+    <dt>目标人物/机构</dt><dd>{{ (detail.target_persons + detail.target_orgs)|join('、') or '-' }}</dd>
+    <dt>负面规则</dt><dd>{{ detail.negative_rules|join('、') or '-' }}</dd>
+    <dt>摘要</dt><dd>{{ row.summary or '-' }}</dd>
+  </dl>
+</section>
+<section class="card">
+  <h3>评分依据</h3>
+  <table class="data-table">
+    <thead><tr><th>维度</th><th>得分</th><th>满分</th><th>依据</th></tr></thead>
+    <tbody>
+    {% for d in detail.dimension_details %}
+      <tr><td>{{ d.dim }}</td><td class="num">{{ d.score }}</td><td class="num">{{ d.max }}</td><td>{{ d.basis }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% if detail.verification_targets %}
+<section class="card">
+  <h3>建议核查</h3>
+  <ul>{% for v in detail.verification_targets %}<li>{{ v }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% endblock %}

@@ -18,6 +18,10 @@ REPORTS_DIR = DATA_DIR / "reports"
 DB_PATH = Path(os.getenv("SCREENING_DB", DATA_DIR / "news_screening.db"))
 LOG_DIR = ROOT / "logs"
 LOG_FILE = LOG_DIR / "app.log"
+MD_DATA_DIR = DATA_DIR / "markdown"
+MD_INBOX_DIR = DATA_DIR / "markdown_inbox"
+MD_DB_PATH = Path(os.getenv("MD_SCREENING_DB", str(MD_DATA_DIR / "md_screening.db")))
+MD_REPORTS_DIR = REPORTS_DIR / "markdown"
 KNOWN_CASES_FILE = Path(os.getenv("KNOWN_CASES_FILE", DATA_DIR / "known_cases.jsonl"))
 PERSON_ALIASES_FILE = CONFIG_DIR / "news_signal" / "person_aliases.yaml"
 

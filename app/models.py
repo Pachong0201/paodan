@@ -66,6 +66,7 @@ class EmailDocument:
     attachments: list = field(default_factory=list)  # AttachmentDoc
     combined_text: str = ""          # 全文（body+所有附件文本拼接）
     source_path: str = ""
+    source_kind: str = "email"       # email | internal_draft（独立 Markdown 内部稿）
 
     @property
     def raw_eml_sha256(self) -> str:
@@ -166,6 +167,7 @@ class RuleResult:
     no_new_evidence: bool = False
     target_persons_found: list = field(default_factory=list)
     target_orgs_found: list = field(default_factory=list)
+    internal_draft: bool = False   # 未发布内部稿：不按「报道/记者+去年」判旧闻
 
     def to_dict(self) -> dict:
         d = asdict(self)

@@ -455,6 +455,9 @@ class FinalScorer:
             return 10.0
         if rule.no_new_evidence:
             return 0.0
+        # 未发布内部稿天然含「报道/记者/去年」叙述，不据此判旧闻
+        if getattr(rule, "internal_draft", False):
+            return 10.0
         # 旧闻转发（强信号：转发/转载/旧闻 等字样 + 无金额新线索）降为新细节档
         # 不用 "当时/曾/先前" 等弱叙述词——正常爆料叙述也会出现
         oldish = any(k in rule.normalized for k in
