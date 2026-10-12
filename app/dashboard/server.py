@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from ..config import DB_PATH
+from ..config import DB_PATH, MD_DB_PATH
 from ..workbench.job_runner import JobRunner
 from .config import DashboardConfigError, load_dashboard_config
 from .db import connect_dashboard, ensure_database
@@ -28,6 +28,7 @@ from .routes import dashboard as dashboard_routes
 from .routes import emails as email_routes
 from .routes import imports as import_routes
 from .routes import jobs as job_routes
+from .routes import markdown as markdown_routes
 from .routes import reader as reader_routes
 from .routes import reviews as review_routes
 from .routes import settings as setting_routes
@@ -40,7 +41,8 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost", "::1", "testserver"]
 
 def create_app(db_path: str | Path | None = None,
                config_dir: str | Path | None = None,
-               import_staging_root: str | Path | None = None) -> FastAPI:
+               import_staging_root: str | Path | None = None,
+               md_db_path: str | Path | None = None) -> FastAPI:
     cfg = load_dashboard_config(config_dir=config_dir)
     if not cfg.enabled:
         raise DashboardConfigError("Dashboard disabled by config")
@@ -50,6 +52,7 @@ def create_app(db_path: str | Path | None = None,
                   redoc_url=None, openapi_url=None)
     app.state.db_path = resolved_db
     app.state.dashboard_config = cfg
+    app.state.md_db_path = Path(md_db_path) if md_db_path else MD_DB_PATH
     app.state.csrf_token = secrets.token_urlsafe(24)
     app.state.templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     app.state.import_staging_root = (Path(import_staging_root) if import_staging_root
@@ -80,6 +83,7 @@ def create_app(db_path: str | Path | None = None,
     app.include_router(reader_routes.router)
     app.include_router(setting_routes.router)
     app.include_router(review_routes.router)
+    app.include_router(markdown_routes.router)
 
     @app.get("/api/stats")
     def api_stats():

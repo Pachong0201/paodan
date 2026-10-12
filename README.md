@@ -178,6 +178,12 @@ python -m app.main --selfcheck
 
 ### Markdown 内部稿筛选（独立入口）
 
+**网页操作**：启动工作台 `python -m app.dashboard.server`，打开 http://127.0.0.1:8765/markdown （顶部导航「Markdown 稿件」）。
+可多选 `.md` / `.markdown` 或上传含稿件的 `.zip`，可勾选「按 ## 切段」「调用 LLM」「重新分析」；
+结果按分数排序，可按等级筛选、查看评分依据、下载 CSV。页面不展示稿件原文，结果写入独立的 md 结果库，不进入邮件工作台。
+
+**命令行**：
+
 用于无附件的 `.md` / `.markdown` 稿件（如未发布的内部新闻稿），与邮件流程完全分开：
 
 ```bash

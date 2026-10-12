@@ -11,20 +11,14 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
-from .config import DATA_DIR, REPORTS_DIR, priority_min_value
+from .config import MD_DB_PATH, MD_INBOX_DIR, MD_REPORTS_DIR, priority_min_value
 from .main import _load_config, _print_record
 from .parsers.markdown_parser import MARKDOWN_SUFFIXES
 
 logger = logging.getLogger("app.md_main")
-
-MD_DATA_DIR = DATA_DIR / "markdown"
-MD_INBOX_DIR = DATA_DIR / "markdown_inbox"
-MD_DB_PATH = Path(os.getenv("MD_SCREENING_DB", str(MD_DATA_DIR / "md_screening.db")))
-MD_REPORTS_DIR = REPORTS_DIR / "markdown"
 
 
 def run(args) -> int:
